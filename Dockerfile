@@ -14,22 +14,20 @@ FROM golang:1.22-alpine AS backend-builder
 
 WORKDIR /app
 
-# sqlite3 needs gcc & friends
+# No need for build-base unless you compile C libs, but you may keep it for safety
 RUN apk add --no-cache build-base
 
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
-# copy backend source
 COPY backend/ .
 
-# copy built frontend into backend/static for //go:embed
-RUN mkdir -p static
-COPY --from=frontend-builder /frontend/dist ./static
+# Copy built frontend into the correct embed folder
+RUN mkdir -p internal/staticfs/static
+COPY --from=frontend-builder /frontend/dist/* ./internal/staticfs/static/
 
-# build binary (rename from 'myapp' → 'synapsys-core')
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o synapsys-core .
-
+# Build backend binary (correct entrypoint)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o synapsys-core ./cmd/core
 
 # ---- 3. Final runtime image ----
 FROM alpine:3.20
@@ -40,13 +38,13 @@ WORKDIR /app
 COPY --from=backend-builder /app/synapsys-core /app/synapsys-core
 
 # Copy frontend static files
-COPY --from=backend-builder /app/static /app/static
+COPY --from=backend-builder /app/internal/staticfs/static /app/static
 
 # directory for sqlite db
 RUN mkdir -p /data
 ENV DB_PATH=/data/app.db
 
-EXPOSE 8080
+EXPOSE 50166
 
 VOLUME ["/data"]
 
