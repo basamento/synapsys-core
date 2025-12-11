@@ -8,10 +8,11 @@ import (
 
 func InitSchema(db *sql.DB) error {
 	_, err := db.Exec(`
-        CREATE TABLE IF NOT EXISTS todos (
+        CREATE TABLE IF NOT EXISTS neurons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            done BOOLEAN NOT NULL DEFAULT 0
+            name TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_connection DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `)
 	return err

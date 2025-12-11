@@ -4,14 +4,15 @@ import (
 	"net/http"
 
 	"synapsys-core-go/backend/internal/handler"
+	"synapsys-core-go/backend/internal/repository"
 )
 
-func New() *http.ServeMux {
+func New(repo *repository.NeuronRepository) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Health check
 	mux.HandleFunc("/api/test", handler.TestHandler)
-	mux.HandleFunc("/api/register", handler.RegisterNeuronHandler)
+	mux.HandleFunc("/api/neurons", handler.NeuronsHandler(repo))
 
 	return mux
 }
