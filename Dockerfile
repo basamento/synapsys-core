@@ -24,7 +24,7 @@ COPY backend/ .
 
 # Copy built frontend into the correct embed folder
 RUN mkdir -p internal/staticfs/static
-COPY --from=frontend-builder /frontend/dist/* ./internal/staticfs/static/
+COPY --from=frontend-builder /frontend/dist/ ./internal/staticfs/static/
 
 # Build backend binary (correct entrypoint)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o synapsys-core ./cmd/core

@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-//go:embed static/*
+//go:embed all:static
 var Embedded embed.FS
 
 // Static returns the embedded FS if available,
