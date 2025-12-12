@@ -1,34 +1,35 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { ThemeProvider } from "@/components/theme-provider"
+import { NeuronsTable } from "./components/neurons-table/neurons-table"
+import { useNeurons } from "./hooks/useNeurons"
+import { useEffect } from "react"
+import { columns } from "./components/neurons-table/columns"
+import { TopBar } from "@/components/top-bar"
 
 function App() {
-  const [count, setCount] = useState(0)
+  const { data, loading, error } = useNeurons()
+
+  useEffect(() => {
+    console.log("Neurons data:", data)
+  }, [data])
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <div className="min-h-screen flex flex-col">
+        
+        <TopBar />
+
+        <main className="flex-1 p-6">
+          {loading && <div>Loading…</div>}
+          {error && <div>Error: {error.message}</div>}
+          {!loading && !error && (
+            <div className="rounded-xl border bg-card">
+              <NeuronsTable columns={columns} data={data} />
+            </div>
+          )}
+        </main>
+
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </ThemeProvider>
   )
 }
 
