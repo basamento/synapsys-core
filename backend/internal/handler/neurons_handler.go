@@ -18,6 +18,9 @@ func NeuronsHandler(repo *repository.NeuronRepository) http.HandlerFunc {
 		case http.MethodPost:
 			handleRegisterNeuron(w, r, repo)
 
+		case http.MethodPut:
+			handleHeartbeat(w, r, repo)
+
 		case http.MethodGet:
 			handleListNeurons(w, r, repo)
 
@@ -68,4 +71,25 @@ func handleListNeurons(w http.ResponseWriter, r *http.Request, repo *repository.
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(neurons)
+}
+
+func handleHeartbeat(w http.ResponseWriter, r *http.Request, repo *repository.NeuronRepository) {
+	var req RegisterNeuronRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "Missing 'name' field", http.StatusBadRequest)
+		return
+	}
+
+	if err := repo.TouchLastConnection(req.Name); err != nil {
+		http.Error(w, "Failed to update heartbeat", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
