@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"synapsys-core-go/backend/internal/db"
+	"synapsys-core-go/backend/internal/http/middleware"
 	"synapsys-core-go/backend/internal/repository"
 	"synapsys-core-go/backend/internal/router"
 	"synapsys-core-go/backend/internal/staticfs"
@@ -61,6 +62,8 @@ func main() {
 	}
 	addr := ":" + port
 
+	handler := middleware.CORS(mux)
+
 	log.Printf("Synapsys Core running on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	log.Fatal(http.ListenAndServe(addr, handler))
 }
