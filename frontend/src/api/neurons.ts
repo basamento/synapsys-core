@@ -5,6 +5,7 @@ export type Neuron = {
   name: string
   created_at: string
   last_connection: string
+  status: "online" | "offline" 
 }
 
 export function listNeurons() {
