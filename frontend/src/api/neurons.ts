@@ -6,6 +6,8 @@ export type Neuron = {
   created_at: string
   last_connection: string
   status: "online" | "offline" 
+  desired_state: "idle" | "running"
+  last_state: "idle" | "running"
 }
 
 export function listNeurons() {
@@ -18,3 +20,11 @@ export function registerNeuron(name: string) {
     body: JSON.stringify({ name }),
   })
 }
+
+export function startNeuron(id: number) {
+  console.log("Starting neuron with ID:", id)
+  return apiFetch<void>(`/api/neurons/${id}/start`, {
+    method: "POST",
+  })
+}
+

@@ -24,6 +24,7 @@ export function NeuronsTable<TData, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
+  
   const table = useReactTable({
     data,
     columns,

@@ -1,7 +1,8 @@
 import type { ColumnDef } from "@tanstack/react-table"
-import type { Neuron } from "@/api/neurons"
+import { type Neuron } from "@/api/neurons"
 import { Badge } from "../ui/badge"
 import { formatDateTime } from "@/lib/utils"
+import { StartNeuronButton } from "./start-neuron-button"
 
 export const columns: ColumnDef<Neuron>[] = [
     {
@@ -32,6 +33,35 @@ export const columns: ColumnDef<Neuron>[] = [
             }
             return <Badge variant="destructive">Offline</Badge>
         },
-    }
+    },
+    {
+        accessorKey: "desired_state",
+        header: "State",
+        cell: ({ getValue }) => {
+            const state = getValue<Neuron["desired_state"]>()
+            if (state === "idle") {
+                return (
+                    <Badge className="bg-blue-600 text-white hover:bg-blue-700">
+                        Idle
+                    </Badge>
+                )
+            }
+            if (state === "running") {
+                return (
+                    <Badge className="bg-violet-600 text-white hover:bg-violet-700">
+                        Running
+                    </Badge>
+                )
+            }
+            return null
+        },
+    },
+    {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+            <StartNeuronButton neuron={row.original} />
+        ),
+    },
 ]
 

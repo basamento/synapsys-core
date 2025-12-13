@@ -6,6 +6,7 @@ import { columns } from "./components/neurons-table/columns"
 import { TopBar } from "@/components/top-bar"
 
 function App() {
+
   const { data, loading, error } = useNeurons()
 
   useEffect(() => {
