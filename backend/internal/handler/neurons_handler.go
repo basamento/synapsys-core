@@ -2,12 +2,14 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"synapsys-core-go/backend/internal/repository"
 )
 
 type RegisterNeuronRequest struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	PingTiming int    `json:"ping_timing"`
 }
 
 func NeuronsHandler(repo *repository.NeuronRepository) http.HandlerFunc {
@@ -43,9 +45,18 @@ func handleRegisterNeuron(w http.ResponseWriter, r *http.Request, repo *reposito
 		return
 	}
 
-	neuron, err := repo.CreateOrUpdate(req.Name)
+	neuron, err := repo.CreateOrUpdate(req.Name, req.PingTiming)
 	if err != nil {
 		http.Error(w, "Failed to save neuron", http.StatusInternalServerError)
+		return
+	}
+	if req.PingTiming <= 0 {
+		log.Printf(
+			"[WARN] Invalid ping_timing received for neuron '%s': %d",
+			req.Name,
+			req.PingTiming,
+		)
+		http.Error(w, "Invalid 'ping_timing', must be > 0", http.StatusBadRequest)
 		return
 	}
 
