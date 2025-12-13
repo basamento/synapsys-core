@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	DesiredRunning = "RUNNING"
-	DesiredStopped = "STOPPED"
+	DesiredRunning = "running"
+	DesiredStopped = "idle"
 )
 
 type Neuron struct {
@@ -17,7 +17,8 @@ type Neuron struct {
 	Name           string `json:"name"`
 	CreatedAt      string `json:"created_at"`
 	LastConnection string `json:"last_connection"`
-	DesiredState   string `json:"desired_state"`
+	DesiredState   string `json:"desired_state"` // "running" | "idle"
+	LastState      string `json:"last_state"`    // "running" | "idle"
 	PingTiming     int    `json:"ping_timing"`
 	Status         string `json:"status"` // "online" | "offline"
 }
@@ -49,7 +50,7 @@ func (r *NeuronRepository) CreateOrUpdate(name string, pingTiming int) (*Neuron,
 	}
 
 	row := r.DB.QueryRow(`
-        SELECT id, name, created_at, last_connection, desired_state, ping_timing
+        SELECT id, name, created_at, last_connection, last_state, desired_state, ping_timing
         FROM neurons
         WHERE name = ?
     `, name)
@@ -60,6 +61,7 @@ func (r *NeuronRepository) CreateOrUpdate(name string, pingTiming int) (*Neuron,
 		&n.Name,
 		&n.CreatedAt,
 		&n.LastConnection,
+		&n.LastState,
 		&n.DesiredState,
 		&n.PingTiming,
 	); err != nil {
@@ -71,7 +73,7 @@ func (r *NeuronRepository) CreateOrUpdate(name string, pingTiming int) (*Neuron,
 
 func (r *NeuronRepository) ListAll() ([]Neuron, error) {
 	rows, err := r.DB.Query(`
-        SELECT id, name, created_at, last_connection, desired_state, ping_timing
+        SELECT id, name, created_at, last_connection, desired_state, last_state, ping_timing
         FROM neurons
         ORDER BY id ASC
     `)
@@ -91,6 +93,7 @@ func (r *NeuronRepository) ListAll() ([]Neuron, error) {
 			&n.Name,
 			&n.CreatedAt,
 			&n.LastConnection,
+			&n.LastState,
 			&n.DesiredState,
 			&pingTiming,
 		); err != nil {
@@ -104,14 +107,6 @@ func (r *NeuronRepository) ListAll() ([]Neuron, error) {
 		}
 
 		now := time.Now().UTC()
-
-		log.Printf(
-			"[DEBUG] neuron=%s last=%s ping=%d now=%s",
-			n.Name,
-			n.LastConnection,
-			n.PingTiming,
-			now.Format("2006-01-02 15:04:05"),
-		)
 
 		n.Status = "offline"
 
@@ -134,8 +129,51 @@ func (r *NeuronRepository) ListAll() ([]Neuron, error) {
 	return list, nil
 }
 
-func (r *NeuronRepository) SetDesiredState(name string, state string) error {
+func (r *NeuronRepository) GetByID(id int64) (*Neuron, error) {
+	row := r.DB.QueryRow(`
+        SELECT id, name, created_at, last_connection, desired_state, last_state, ping_timing
+        FROM neurons
+        WHERE id = ?
+    `, id)
 
+	var n Neuron
+	var pingTiming sql.NullInt64
+
+	if err := row.Scan(
+		&n.ID,
+		&n.Name,
+		&n.CreatedAt,
+		&n.LastConnection,
+		&n.DesiredState,
+		&n.LastState,
+		&pingTiming,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // not found
+		}
+		return nil, err
+	}
+
+	if pingTiming.Valid {
+		n.PingTiming = int(pingTiming.Int64)
+	}
+
+	// compute status (same logic as ListAll)
+	n.Status = "offline"
+	if n.PingTiming > 0 {
+		lastConn, err := time.Parse(time.RFC3339, n.LastConnection)
+		if err == nil {
+			expiry := lastConn.Add(time.Duration(n.PingTiming) * time.Millisecond)
+			if time.Now().UTC().Before(expiry) {
+				n.Status = "online"
+			}
+		}
+	}
+
+	return &n, nil
+}
+
+func (r *NeuronRepository) SetDesiredStateByID(id int64, state string) error {
 	if state != DesiredRunning && state != DesiredStopped {
 		return fmt.Errorf("invalid desired state: %s", state)
 	}
@@ -143,21 +181,42 @@ func (r *NeuronRepository) SetDesiredState(name string, state string) error {
 	_, err := r.DB.Exec(`
         UPDATE neurons
         SET desired_state = ?
-        WHERE name = ?
-    `, state, name)
+        WHERE id = ?
+    `, state, id)
 
 	return err
-
 }
 
-func (r *NeuronRepository) TouchLastConnection(name string) error {
-	_, err := r.DB.Exec(`
-        UPDATE neurons
-        SET last_connection = CURRENT_TIMESTAMP
-        WHERE name = ?
-    `, name)
+func (r *NeuronRepository) Heartbeat(name string, lastState string) (string, error) {
 
-	return err
+	if !isValidState(lastState) {
+		return "", fmt.Errorf("invalid last_state: %s", lastState)
+	}
+
+	row := r.DB.QueryRow(`
+        UPDATE neurons
+        SET
+            last_connection = CURRENT_TIMESTAMP,
+            last_state = ?,
+            desired_state = CASE
+                WHEN desired_state = 'running' AND ? = 'running'
+                THEN 'idle'
+                ELSE desired_state
+            END
+        WHERE name = ?
+        RETURNING desired_state
+    `, lastState, lastState, name)
+
+	var desiredState sql.NullString
+	if err := row.Scan(&desiredState); err != nil {
+		return "", err
+	}
+
+	if desiredState.Valid {
+		return desiredState.String, nil
+	}
+
+	return DesiredStopped, nil
 }
 
 func (r *NeuronRepository) GetStateByID(id int64) (*NeuronState, error) {
@@ -190,4 +249,8 @@ func (r *NeuronRepository) GetStateByID(id int64) (*NeuronState, error) {
 		ID:    id,
 		State: state,
 	}, nil
+}
+
+func isValidState(state string) bool {
+	return state == DesiredRunning || state == DesiredStopped
 }

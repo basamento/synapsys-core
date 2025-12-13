@@ -13,6 +13,7 @@ func New(repo *repository.NeuronRepository) *http.ServeMux {
 	// Health check
 	mux.HandleFunc("/api/test", handler.TestHandler)
 	mux.HandleFunc("/api/neurons", handler.NeuronsHandler(repo))
+	mux.HandleFunc("/api/neurons/", handler.NeuronByIDHandler(repo))
 
 	return mux
 }

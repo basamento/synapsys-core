@@ -13,7 +13,8 @@ func InitSchema(db *sql.DB) error {
             name TEXT NOT NULL UNIQUE,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             last_connection DATETIME DEFAULT CURRENT_TIMESTAMP,
-            desired_state TEXT NOT NULL DEFAULT 'STOPPED',
+            desired_state TEXT NOT NULL DEFAULT 'idle',
+            last_state TEXT NOT NULL DEFAULT 'idle',
             ping_timing INTEGER NOT NULL
         );
     `)
