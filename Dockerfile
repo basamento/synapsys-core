@@ -23,8 +23,8 @@ RUN go mod download
 COPY backend/ .
 
 # Copy built frontend into the correct embed folder
-RUN mkdir -p internal/staticfs/static
-COPY --from=frontend-builder /frontend/dist/ ./internal/staticfs/static/
+RUN mkdir -p web/dist
+COPY --from=frontend-builder /frontend/dist/ ./web/dist/
 
 # Build backend binary (correct entrypoint)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o synapsys-core ./cmd/core
@@ -38,11 +38,10 @@ WORKDIR /app
 COPY --from=backend-builder /app/synapsys-core /app/synapsys-core
 
 # Copy frontend static files
-COPY --from=backend-builder /app/internal/staticfs/static /app/static
+#COPY --from=backend-builder /app/web/dist /app/static
 
 # directory for sqlite db
 RUN mkdir -p /data
-ENV DB_PATH=/data/app.db
 
 EXPOSE 50166
 
