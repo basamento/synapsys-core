@@ -8,6 +8,7 @@ import (
 	"synapsys-core/internal/repository/sqlite"
 	"synapsys-core/internal/server"
 	"synapsys-core/internal/service"
+	"synapsys-core/web"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 	neuronHandler := handler.NewNeuronHandler(neuronService)
 	server.RegisterNeurons(mux, neuronHandler)
 	// register static frontend pages
-	server.RegisterEmbeddedStatic(mux)
+	web.RegisterEmbeddedStatic(mux)
 	// start the server
 	log.Println("Listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
