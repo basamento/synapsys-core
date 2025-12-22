@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Progress } from "@/components/ui/progress";
 
 export function SyncCountdown() {
-  const tickMs = 100;
+  const tickMs = 50;
   const durationMs = 5000;
 
   const [progress, setProgress] = useState<number>(durationMs);
@@ -22,7 +22,7 @@ export function SyncCountdown() {
   const progressPct = (progress / durationMs) * 100;
 
   return (
-    <Progress className="w-70" value={progressPct} />
+    <Progress className="w-50" value={progressPct} />
   );
   
 }
