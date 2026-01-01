@@ -11,6 +11,9 @@ type NeuronType string
 // NeuronState the last registered state of the neuron
 type NeuronState string
 
+// NeuronStatus active or inactive
+type NeuronStatus string
+
 const (
 	NeuronTypeEndless     NeuronType = "endless"
 	NeuronTypeProgressive NeuronType = "progressive"
@@ -20,6 +23,11 @@ const (
 	NeuronStateIdle     NeuronState = "idle"
 	NeuronStateRunning  NeuronState = "running"
 	NeuronStateStopping NeuronState = "stopping"
+)
+
+const (
+	NeuronStatusActive   NeuronStatus = "active"
+	NeuronStatusInactive NeuronStatus = "inactive"
 )
 
 func (t NeuronType) Valid() bool {

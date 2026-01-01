@@ -3,10 +3,24 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log/slog"
 	"synapsys-core/internal/domain"
 	"synapsys-core/internal/repository"
 	"time"
 )
+
+type NeuronDTO struct {
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	ApplicationName string    `json:"applicationName"`
+	Type            string    `json:"type"`
+	CurrentState    string    `json:"currentState"`
+	DesiredState    string    `json:"desiredState"`
+	Status          string    `json:"status"`
+	LastTouch       time.Time `json:"lastTouch"`
+	PingTiming      int       `json:"pingTiming"`
+}
 
 type NeuronHeartbeat struct {
 	Name         string             `json:"name"`
@@ -21,19 +35,28 @@ type NeuronHeartbeatRequest struct {
 	Neurons         []NeuronHeartbeat
 }
 
+type UpdateDesiredStateRequest struct {
+	NeuronName   string             `json:"neuronName"`
+	DesiredState domain.NeuronState `json:"desiredState"`
+}
+
 type NeuronHeartbeatResponse struct {
 	Neurons []NeuronHeartbeat `json:"neurons"`
 }
 
-type NeuronSyncService struct {
+type NeuronListResponse struct {
+	Neurons []NeuronDTO `json:"neurons"`
+}
+
+type NeuronService struct {
 	repo repository.NeuronRepository
 }
 
-func NewNeuronsService(repo repository.NeuronRepository) *NeuronSyncService {
-	return &NeuronSyncService{repo: repo}
+func NewNeuronsService(repo repository.NeuronRepository) *NeuronService {
+	return &NeuronService{repo: repo}
 }
 
-func (s *NeuronSyncService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequest) (NeuronHeartbeatResponse, error) {
+func (s *NeuronService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequest) (NeuronHeartbeatResponse, error) {
 	now := time.Now()
 	neurons := make([]domain.Neuron, 0, len(req.Neurons))
 	names := make([]string, 0, len(req.Neurons))
@@ -88,4 +111,49 @@ func (s *NeuronSyncService) SyncNeurons(ctx context.Context, req NeuronHeartbeat
 	return NeuronHeartbeatResponse{
 		Neurons: responseNeurons,
 	}, nil
+}
+
+func (s *NeuronService) ListAllNeurons(ctx context.Context) (NeuronListResponse, error) {
+	neurons, err := s.repo.ListAll(ctx)
+	if err != nil {
+		slog.Error("failed to list neurons", "error", err)
+		return NeuronListResponse{}, fmt.Errorf("list all neurons: %w", err)
+	}
+
+	now := time.Now()
+	dtos := make([]NeuronDTO, 0, len(neurons))
+	for _, n := range neurons {
+		dtos = append(dtos, toNeuronDTO(n, now))
+	}
+
+	return NeuronListResponse{
+		Neurons: dtos,
+	}, nil
+}
+
+func (s *NeuronService) UpdateDesiredState(ctx context.Context, req UpdateDesiredStateRequest) (bool, error) {
+	return s.repo.UpdateDesiredState(ctx, req.NeuronName, req.DesiredState)
+}
+
+func toNeuronDTO(n domain.Neuron, now time.Time) NeuronDTO {
+	var status domain.NeuronStatus
+	//var threshold int64 = 1000
+	var duration = now.Sub(n.LastTouch)
+	before := duration > time.Duration(n.PingTiming)*time.Millisecond
+	if !before {
+		status = domain.NeuronStatusActive
+	} else {
+		status = domain.NeuronStatusInactive
+	}
+	return NeuronDTO{
+		ID:              n.ID,
+		Name:            n.Name,
+		ApplicationName: n.ApplicationName,
+		Type:            string(n.Type),
+		CurrentState:    string(n.CurrentState),
+		DesiredState:    string(n.DesiredState),
+		Status:          string(status),
+		LastTouch:       n.LastTouch,
+		PingTiming:      n.PingTiming,
+	}
 }

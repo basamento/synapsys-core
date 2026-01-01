@@ -10,7 +10,7 @@ import (
 )
 
 type NeuronHandler struct {
-	service *service.NeuronSyncService
+	service *service.NeuronService
 }
 
 type neuronHeartbeatRequestDTO struct {
@@ -26,11 +26,25 @@ type neuronInfoDTO struct {
 	Type         string `json:"type"`
 }
 
-func NewNeuronHandler(service *service.NeuronSyncService) *NeuronHandler {
+func NewNeuronHandler(service *service.NeuronService) *NeuronHandler {
 	return &NeuronHandler{service: service}
 }
 
-func (h *NeuronHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *NeuronHandler) ListAll(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.service.ListAllNeurons(r.Context())
+	if err != nil {
+		log.Printf("ListAllNeurons failed: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	// parse request body
 	log.Printf("HTTP %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 	var dto neuronHeartbeatRequestDTO
@@ -39,7 +53,7 @@ func (h *NeuronHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// parse to service request
-	req, err := toServiceRequest(dto)
+	req, err := toSyncServiceRequest(dto)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -59,7 +73,33 @@ func (h *NeuronHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func toServiceRequest(dto neuronHeartbeatRequestDTO) (service.NeuronHeartbeatRequest, error) {
+func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// If you're still sending JSON body, decode it here (but name is from path)
+	var dto service.UpdateDesiredStateRequest
+	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	updated, err := h.service.UpdateDesiredState(r.Context(), dto)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !updated {
+		http.Error(w, "neuron not found", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func toSyncServiceRequest(dto neuronHeartbeatRequestDTO) (service.NeuronHeartbeatRequest, error) {
 	// allocate a slice
 	neurons := make([]service.NeuronHeartbeat, 0, len(dto.Neurons))
 	// maps each neuron in the request to a service entity

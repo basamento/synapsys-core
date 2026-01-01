@@ -16,6 +16,50 @@ func NewNeuronRepository(db *sql.DB) *NeuronRepository {
 	return &NeuronRepository{db: db}
 }
 
+func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.Neuron, error) {
+	const query = `
+		SELECT
+		    ID,
+			name,
+			application_name,
+			current_state,
+			desired_state,
+			last_touch,
+			type,
+			ping_timing
+		FROM neurons
+		ORDER BY last_touch DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []domain.Neuron
+	for rows.Next() {
+		var n domain.Neuron
+		if err := rows.Scan(
+			&n.ID,
+			&n.Name,
+			&n.ApplicationName,
+			&n.CurrentState,
+			&n.DesiredState,
+			&n.LastTouch,
+			&n.Type,
+			&n.PingTiming,
+		); err != nil {
+			return nil, err
+		}
+		results = append(results, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate neuron rows: %w", err)
+	}
+	return results, nil
+}
+
 func (r *NeuronRepository) GetByNames(
 	ctx context.Context,
 	appName string,
@@ -159,6 +203,29 @@ func (r *NeuronRepository) BatchUpsert(
 	`, strings.Join(values, ","))
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
+}
+
+func (r *NeuronRepository) UpdateDesiredState(
+	ctx context.Context,
+	neuronName string,
+	state domain.NeuronState,
+) (bool, error) {
+	const query = `
+		UPDATE neurons
+		SET desired_state = ?
+		WHERE name = ?
+	`
+	res, err := r.db.ExecContext(ctx, query, state, neuronName)
+	if err != nil {
+		return false, fmt.Errorf("update desired_state for neuron %q: %w", neuronName, err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("rows affected for neuron %q: %w", neuronName, err)
+	}
+
+	return affected > 0, nil
 }
 
 func (r *NeuronRepository) WithTx(

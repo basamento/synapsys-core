@@ -37,5 +37,5 @@ func main() {
 	web.RegisterEmbeddedStatic(mux)
 	// start the server
 	log.Println("Listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	log.Fatal(http.ListenAndServe(":8080", server.WithCORS(mux)))
 }
