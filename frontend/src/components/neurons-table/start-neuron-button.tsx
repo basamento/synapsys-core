@@ -7,11 +7,14 @@ type StartNeuronButtonProps = {
 
 export function StartNeuronButton({ neuron }: StartNeuronButtonProps) {
 
-  const isRunning = neuron.desired_state === "running"
+  const isRunning = neuron.currentState === "running"
+  const isActive = neuron.status === "active"
+  const alreadyRequested = neuron.desiredState === "running"
 
   async function handleClick() {
     if (isRunning) return
-    await startNeuron(neuron.id)
+    const response = await startNeuron(neuron)
+    console.log("Neuron started:", response)
   }
 
   return (
@@ -19,9 +22,9 @@ export function StartNeuronButton({ neuron }: StartNeuronButtonProps) {
       size="sm"
       variant="outline"
       onClick={handleClick}
-      disabled={isRunning}
+      disabled={isRunning || !isActive || alreadyRequested}
     >
-      Start
+      {alreadyRequested ? "Requested" : "Start"}
     </Button>
   )
 }

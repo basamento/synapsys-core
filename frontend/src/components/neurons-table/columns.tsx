@@ -3,6 +3,7 @@ import { type Neuron } from "@/api/neurons"
 import { Badge } from "../ui/badge"
 import { formatDateTime } from "@/lib/utils"
 import { StartNeuronButton } from "./start-neuron-button"
+import { StopNeuronButton } from "./stop-neuron-button"
 
 export const columns: ColumnDef<Neuron>[] = [
     {
@@ -14,31 +15,36 @@ export const columns: ColumnDef<Neuron>[] = [
         header: "Name",
     },
     {
-        accessorKey: "created_at",
-        header: "Created At",
+        accessorKey: "lastTouch",
+        header: "Last Touch",
         cell: ({ getValue }) => formatDateTime(getValue<string>())
     },
     {
-        accessorKey: "last_connection",
-        header: "Last Connection",
-        cell: ({ getValue }) => formatDateTime(getValue<string>())
+        accessorKey: "type",
+        header: "Type",
+        cell: ({ getValue }) => {
+            const type = getValue<Neuron["type"]>()
+            return <Badge variant="default">
+                {type === "endless" ? "Endless" : "Progressive"}
+            </Badge>
+        },
     },
     {
         accessorKey: "status",
         header: "Status",
         cell: ({ getValue }) => {
             const status = getValue<Neuron["status"]>()
-            if (status === "online") {
-                return <Badge variant="default" className="bg-green-600 text-white hover:bg-green-700">Online</Badge>
+            if (status === "active") {
+                return <Badge variant="default" className="bg-green-600 text-white hover:bg-green-700">Active</Badge>
             }
-            return <Badge variant="destructive">Offline</Badge>
+            return <Badge variant="destructive">Inactive</Badge>
         },
     },
     {
-        accessorKey: "desired_state",
+        accessorKey: "currentState",
         header: "State",
         cell: ({ getValue }) => {
-            const state = getValue<Neuron["desired_state"]>()
+            const state = getValue<Neuron["currentState"]>()
             if (state === "idle") {
                 return (
                     <Badge className="bg-blue-600 text-white hover:bg-blue-700">
@@ -58,9 +64,12 @@ export const columns: ColumnDef<Neuron>[] = [
     },
     {
         id: "actions",
-        header: "Actions",
+        // header: "Actions",
         cell: ({ row }) => (
-            <StartNeuronButton neuron={row.original} />
+            <div className="flex gap-2">
+                <StartNeuronButton neuron={row.original} />
+                <StopNeuronButton neuron={row.original} />
+            </div>
         ),
     },
 ]

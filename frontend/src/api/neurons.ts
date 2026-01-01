@@ -1,30 +1,31 @@
 import { apiFetch } from "./client"
 
 export type Neuron = {
-  id: number
-  name: string
-  created_at: string
-  last_connection: string
-  status: "online" | "offline" 
-  desired_state: "idle" | "running"
-  last_state: "idle" | "running"
+  id: number;
+  name: string;
+  applicationName: string;
+  type: "endless" | "progressive";
+  currentState: "idle" | "running" | "stopping";
+  desiredState: "idle" | "running" | "stopping";
+  status: "active" | "inactive";
+  lastTouch: string;
+  pingTiming: number;
+};
+
+export type ListNeuronsResponse = {
+  neurons: Neuron[];
 }
 
 export function listNeurons() {
-  return apiFetch<Neuron[]>("/api/neurons")
+  return apiFetch<ListNeuronsResponse>("/api/neuron")
 }
 
-export function registerNeuron(name: string) {
-  return apiFetch<Neuron>("/api/neurons", {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  })
-}
 
-export function startNeuron(id: number) {
-  console.log("Starting neuron with ID:", id)
-  return apiFetch<void>(`/api/neurons/${id}/start`, {
-    method: "POST",
+export function startNeuron(neuron: Neuron) {
+  console.log("Starting neuron with ID:", neuron.id)
+  return apiFetch<void>(`/api/neuron`, {
+    method: "PUT",
+    body: JSON.stringify({ neuronName: neuron.name, desiredState: "running" }),
   })
 }
 

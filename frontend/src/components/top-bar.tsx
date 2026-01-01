@@ -1,5 +1,4 @@
 import { ModeToggle } from "@/components/mode-toggle"
-import { SyncCountdown } from "./sync-countdown";
 
 export function TopBar() {
 
@@ -15,7 +14,6 @@ export function TopBar() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-7">
-          <SyncCountdown />
           <ModeToggle />
         </div>
 
