@@ -10,6 +10,9 @@ export type Neuron = {
   status: "active" | "inactive";
   lastTouch: string;
   pingTiming: number;
+  desiredToken: number;
+  ackToken: number;
+  runId?: number | null;
 };
 
 export type ListNeuronsResponse = {
@@ -19,7 +22,6 @@ export type ListNeuronsResponse = {
 export function listNeurons() {
   return apiFetch<ListNeuronsResponse>("/api/neuron")
 }
-
 
 export function startNeuron(neuron: Neuron) {
   console.log("Starting neuron with ID:", neuron.id)

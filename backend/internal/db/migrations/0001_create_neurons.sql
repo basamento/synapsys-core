@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS neurons (
    application_name TEXT NOT NULL,
    current_state TEXT NOT NULL,
    desired_state TEXT NOT NULL,
+   desired_token INTEGER NOT NULL DEFAULT "idle",
+   ack_token INTEGER NOT NULL,
+   desired_run_id INTEGER NULL,
    last_touch DATETIME NOT NULL,
    ping_timing INTEGER NOT NULL
 );

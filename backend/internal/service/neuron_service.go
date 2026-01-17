@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"synapsys-core/internal/domain"
 	"synapsys-core/internal/repository"
 	"time"
@@ -17,6 +18,9 @@ type NeuronDTO struct {
 	Type            string    `json:"type"`
 	CurrentState    string    `json:"currentState"`
 	DesiredState    string    `json:"desiredState"`
+	DesiredToken    int64     `json:"desiredToken"`
+	AckToken        int64     `json:"ackToken"`
+	RunId           *int64    `json:"runId,omitempty"`
 	Status          string    `json:"status"`
 	LastTouch       time.Time `json:"lastTouch"`
 	PingTiming      int       `json:"pingTiming"`
@@ -24,9 +28,17 @@ type NeuronDTO struct {
 
 type NeuronHeartbeat struct {
 	Name         string             `json:"name"`
-	CurrentState domain.NeuronState `json:"currentState"`
-	DesiredState domain.NeuronState `json:"desiredState"`
 	Type         domain.NeuronType  `json:"type"`
+	CurrentState domain.NeuronState `json:"currentState"`
+	AckToken     int64              `json:"ackToken"`
+}
+
+type NeuronCommand struct {
+	Name         string             `json:"name"`
+	Type         domain.NeuronType  `json:"type"`
+	DesiredState domain.NeuronState `json:"desiredState"`
+	DesiredToken int64              `json:"desiredToken"`
+	RunId        *int64             `json:"runId,omitempty"`
 }
 
 type NeuronHeartbeatRequest struct {
@@ -41,7 +53,7 @@ type UpdateDesiredStateRequest struct {
 }
 
 type NeuronHeartbeatResponse struct {
-	Neurons []NeuronHeartbeat `json:"neurons"`
+	Neurons []NeuronCommand `json:"neurons"`
 }
 
 type NeuronListResponse struct {
@@ -58,37 +70,48 @@ func NewNeuronsService(repo repository.NeuronRepository) *NeuronService {
 
 func (s *NeuronService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequest) (NeuronHeartbeatResponse, error) {
 	now := time.Now()
-	neurons := make([]domain.Neuron, 0, len(req.Neurons))
+
+	observations := make([]domain.Neuron, 0, len(req.Neurons))
 	names := make([]string, 0, len(req.Neurons))
-	for _, n := range req.Neurons {
-		dn := domain.Neuron{
-			Name:            n.Name,
+
+	for _, hb := range req.Neurons {
+		n := domain.Neuron{
+			Name:            hb.Name,
 			ApplicationName: req.ApplicationName,
-			CurrentState:    n.CurrentState,
-			DesiredState:    n.DesiredState,
-			LastTouch:       now,
-			Type:            n.Type,
-			PingTiming:      req.PingTiming,
+			Type:            hb.Type,
+
+			CurrentState: hb.CurrentState,
+			AckToken:     hb.AckToken,
+
+			// For inserts: desired defaults
+			DesiredState: domain.NeuronStateIdle,
+			DesiredToken: 0,
+			DesiredRunID: nil,
+
+			LastTouch:  now,
+			PingTiming: req.PingTiming,
 		}
-		if err := dn.Validate(); err != nil {
+		if err := n.Validate(); err != nil {
 			return NeuronHeartbeatResponse{}, err
 		}
-		neurons = append(neurons, dn)
-		names = append(names, n.Name)
+		observations = append(observations, n)
+		names = append(names, hb.Name)
 	}
+
 	var dbNeurons []domain.Neuron
 
 	err := s.repo.WithTx(ctx, func(tx *sql.Tx) error {
-		if err := s.repo.BatchUpsert(ctx, neurons); err != nil {
+		// 1) upsert observations (does NOT overwrite desired command fields)
+		if err := s.repo.BatchUpsert(ctx, observations); err != nil {
 			return err
 		}
-
+		// 2) cleanup desired_state for progressive runs that have been acked
+		if err := s.repo.ApplyDesiredCleanup(ctx, req.ApplicationName, names); err != nil {
+			return err
+		}
+		// 3) fetch back desired commands to return
 		var err error
-		dbNeurons, err = s.repo.GetByNames(
-			ctx,
-			req.ApplicationName,
-			names,
-		)
+		dbNeurons, err = s.repo.GetByNames(ctx, req.ApplicationName, names)
 		return err
 	})
 
@@ -96,21 +119,18 @@ func (s *NeuronService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequ
 		return NeuronHeartbeatResponse{}, err
 	}
 
-	// here neurons should be all the neurons of req.Neurons fetched from the db after the upsert
-	responseNeurons := make([]NeuronHeartbeat, 0, len(dbNeurons))
-
+	resp := make([]NeuronCommand, 0, len(dbNeurons))
 	for _, n := range dbNeurons {
-		responseNeurons = append(responseNeurons, NeuronHeartbeat{
+		resp = append(resp, NeuronCommand{
 			Name:         n.Name,
-			CurrentState: n.CurrentState,
-			DesiredState: n.DesiredState,
 			Type:         n.Type,
+			DesiredState: n.DesiredState,
+			DesiredToken: n.DesiredToken,
+			RunId:        n.DesiredRunID,
 		})
 	}
 
-	return NeuronHeartbeatResponse{
-		Neurons: responseNeurons,
-	}, nil
+	return NeuronHeartbeatResponse{Neurons: resp}, nil
 }
 
 func (s *NeuronService) ListAllNeurons(ctx context.Context) (NeuronListResponse, error) {
@@ -132,19 +152,36 @@ func (s *NeuronService) ListAllNeurons(ctx context.Context) (NeuronListResponse,
 }
 
 func (s *NeuronService) UpdateDesiredState(ctx context.Context, req UpdateDesiredStateRequest) (bool, error) {
-	return s.repo.UpdateDesiredState(ctx, req.NeuronName, req.DesiredState)
+	// normalize
+	state := domain.NeuronState(strings.ToLower(string(req.DesiredState)))
+	if !state.Valid() {
+		return false, fmt.Errorf("invalid desired state")
+	}
+	// Backward compatibility: if someone still sends IDLE to mean stop,
+	// interpret it as STOPPING (explicit stop command).
+	if state == domain.NeuronStateIdle {
+		state = domain.NeuronStateStopping
+	}
+	var runID *int64
+	if state == domain.NeuronStateRunning {
+		// core generates runID; repo applies it only if neuron is progressive
+		id := time.Now().UnixNano()
+		runID = &id
+	}
+	return s.repo.UpdateDesiredCommand(ctx, req.NeuronName, state, runID)
 }
 
 func toNeuronDTO(n domain.Neuron, now time.Time) NeuronDTO {
 	var status domain.NeuronStatus
-	//var threshold int64 = 1000
-	var duration = now.Sub(n.LastTouch)
-	before := duration > time.Duration(n.PingTiming)*time.Millisecond
-	if !before {
-		status = domain.NeuronStatusActive
-	} else {
+	duration := now.Sub(n.LastTouch)
+	inactive := duration > time.Duration(n.PingTiming)*time.Millisecond
+
+	if inactive {
 		status = domain.NeuronStatusInactive
+	} else {
+		status = domain.NeuronStatusActive
 	}
+
 	return NeuronDTO{
 		ID:              n.ID,
 		Name:            n.Name,
@@ -155,5 +192,9 @@ func toNeuronDTO(n domain.Neuron, now time.Time) NeuronDTO {
 		Status:          string(status),
 		LastTouch:       n.LastTouch,
 		PingTiming:      n.PingTiming,
+
+		DesiredToken: n.DesiredToken,
+		AckToken:     n.AckToken,
+		RunId:        n.DesiredRunID,
 	}
 }

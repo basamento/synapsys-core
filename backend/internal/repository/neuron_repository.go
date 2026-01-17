@@ -13,4 +13,6 @@ type NeuronRepository interface {
 	Upsert(ctx context.Context, n domain.Neuron) error
 	UpdateDesiredState(ctx context.Context, neuronName string, state domain.NeuronState) (bool, error)
 	BatchUpsert(ctx context.Context, neurons []domain.Neuron) error
+	UpdateDesiredCommand(ctx context.Context, neuronName string, state domain.NeuronState, runID *int64) (bool, error)
+	ApplyDesiredCleanup(ctx context.Context, appName string, names []string) error
 }

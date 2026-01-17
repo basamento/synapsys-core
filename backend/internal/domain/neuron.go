@@ -5,13 +5,8 @@ import (
 	"time"
 )
 
-// NeuronType the type of the neuron execution
 type NeuronType string
-
-// NeuronState the last registered state of the neuron
 type NeuronState string
-
-// NeuronStatus active or inactive
 type NeuronStatus string
 
 const (
@@ -38,16 +33,21 @@ func (s NeuronState) Valid() bool {
 	return s == NeuronStateIdle || s == NeuronStateRunning || s == NeuronStateStopping
 }
 
-// Neuron main entity
 type Neuron struct {
 	ID              int64
 	Name            string
 	ApplicationName string
 	Type            NeuronType
-	CurrentState    NeuronState
-	DesiredState    NeuronState
-	LastTouch       time.Time
-	PingTiming      int
+
+	CurrentState NeuronState
+	DesiredState NeuronState
+
+	DesiredToken int64
+	AckToken     int64
+	DesiredRunID *int64
+
+	LastTouch  time.Time
+	PingTiming int
 }
 
 func (n Neuron) Validate() error {
@@ -61,10 +61,16 @@ func (n Neuron) Validate() error {
 		return fmt.Errorf("invalid neuron type: %q", n.Type)
 	}
 	if !n.CurrentState.Valid() {
-		return fmt.Errorf("invalid neuron state: %q", n.CurrentState)
+		return fmt.Errorf("invalid current state: %q", n.CurrentState)
+	}
+	if !n.DesiredState.Valid() {
+		return fmt.Errorf("invalid desired state: %q", n.DesiredState)
 	}
 	if n.PingTiming <= 0 {
 		return fmt.Errorf("ping timing must be positive")
+	}
+	if n.DesiredToken < 0 || n.AckToken < 0 {
+		return fmt.Errorf("tokens must be >= 0")
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"synapsys-core/internal/domain"
 	"synapsys-core/internal/service"
 )
@@ -22,8 +23,12 @@ type neuronHeartbeatRequestDTO struct {
 type neuronInfoDTO struct {
 	Name         string `json:"name"`
 	CurrentState string `json:"currentState"`
-	DesiredState string `json:"desiredState"`
+	DesiredState string `json:"desiredState"` // optional/debug
 	Type         string `json:"type"`
+
+	DesiredToken *int64 `json:"desiredToken,omitempty"` // optional/debug
+	RunId        *int64 `json:"runId,omitempty"`        // optional/debug
+	AckToken     *int64 `json:"ackToken,omitempty"`     // IMPORTANT (should be sent)
 }
 
 func NewNeuronHandler(service *service.NeuronService) *NeuronHandler {
@@ -100,24 +105,30 @@ func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Reques
 }
 
 func toSyncServiceRequest(dto neuronHeartbeatRequestDTO) (service.NeuronHeartbeatRequest, error) {
-	// allocate a slice
 	neurons := make([]service.NeuronHeartbeat, 0, len(dto.Neurons))
-	// maps each neuron in the request to a service entity
+
 	for _, n := range dto.Neurons {
-		cs := domain.NeuronState(n.CurrentState)
-		ds := domain.NeuronState(n.DesiredState)
-		if !cs.Valid() || !ds.Valid() {
-			return service.NeuronHeartbeatRequest{},
-				fmt.Errorf("invalid neuron state")
+		// Normalize to lowercase to support Java enums RUNNING/IDLE/STOPPING etc.
+		cs := domain.NeuronState(strings.ToLower(n.CurrentState))
+		nt := domain.NeuronType(strings.ToLower(n.Type))
+
+		if !cs.Valid() || !nt.Valid() {
+			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid neuron current state or type")
 		}
+
+		var ack int64 = 0
+		if n.AckToken != nil {
+			ack = *n.AckToken
+		}
+
 		neurons = append(neurons, service.NeuronHeartbeat{
 			Name:         n.Name,
+			Type:         nt,
 			CurrentState: cs,
-			DesiredState: ds,
-			Type:         domain.NeuronType(n.Type),
+			AckToken:     ack,
 		})
 	}
-	// returns a service request
+
 	return service.NeuronHeartbeatRequest{
 		ApplicationName: dto.ApplicationName,
 		PingTiming:      dto.PingTiming,

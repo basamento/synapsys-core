@@ -18,18 +18,21 @@ func NewNeuronRepository(db *sql.DB) *NeuronRepository {
 
 func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.Neuron, error) {
 	const query = `
-		SELECT
-		    ID,
-			name,
-			application_name,
-			current_state,
-			desired_state,
-			last_touch,
-			type,
-			ping_timing
-		FROM neurons
-		ORDER BY last_touch DESC
-	`
+	SELECT
+		ID,
+		name,
+		application_name,
+		current_state,
+		desired_state,
+		desired_token,
+		ack_token,
+		desired_run_id,
+		last_touch,
+		type,
+		ping_timing
+	FROM neurons
+	ORDER BY last_touch DESC
+`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -40,12 +43,16 @@ func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.Neuron, error)
 	var results []domain.Neuron
 	for rows.Next() {
 		var n domain.Neuron
+		var runID sql.NullInt64
 		if err := rows.Scan(
 			&n.ID,
 			&n.Name,
 			&n.ApplicationName,
 			&n.CurrentState,
 			&n.DesiredState,
+			&n.DesiredToken,
+			&n.AckToken,
+			&runID,
 			&n.LastTouch,
 			&n.Type,
 			&n.PingTiming,
@@ -86,6 +93,9 @@ func (r *NeuronRepository) GetByNames(
 			application_name,
 			current_state,
 			desired_state,
+			desired_token,
+			ack_token,
+			desired_run_id,
 			last_touch,
 			type,
 			ping_timing
@@ -104,17 +114,30 @@ func (r *NeuronRepository) GetByNames(
 
 	for rows.Next() {
 		var n domain.Neuron
+		var runID sql.NullInt64
+
 		if err := rows.Scan(
 			&n.Name,
 			&n.ApplicationName,
 			&n.CurrentState,
 			&n.DesiredState,
+			&n.DesiredToken,
+			&n.AckToken,
+			&runID,
 			&n.LastTouch,
 			&n.Type,
 			&n.PingTiming,
 		); err != nil {
 			return nil, err
 		}
+
+		if runID.Valid {
+			v := runID.Int64
+			n.DesiredRunID = &v
+		} else {
+			n.DesiredRunID = nil
+		}
+
 		result = append(result, n)
 	}
 
@@ -154,53 +177,130 @@ func (r *NeuronRepository) Upsert(ctx context.Context, n domain.Neuron) error {
 	return err
 }
 
-func (r *NeuronRepository) BatchUpsert(
-	ctx context.Context,
-	neurons []domain.Neuron,
-) error {
+func (r *NeuronRepository) BatchUpsert(ctx context.Context, neurons []domain.Neuron) error {
 	if len(neurons) == 0 {
 		return nil
 	}
+
 	var (
 		values []string
 		args   []any
 	)
 
-	for i, n := range neurons {
-		// (?, ?, ?, ?, ?, ?, ?)
-		values = append(values,
-			fmt.Sprintf("(?, ?, ?, ?, ?, ?, ?)"),
-		)
+	for _, n := range neurons {
+		values = append(values, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		args = append(args,
 			n.Name,
 			n.ApplicationName,
+			string(n.Type),
 			string(n.CurrentState),
+			// INSERT defaults for new rows (do NOT overwrite on conflict)
 			string(n.DesiredState),
+			n.DesiredToken,
+			// observed
+			n.AckToken,
+			// nullable
+			n.DesiredRunID,
 			n.LastTouch,
-			n.Type,
 			n.PingTiming,
 		)
-		_ = i // clarity, not strictly needed
 	}
 
 	query := fmt.Sprintf(`
 		INSERT INTO neurons (
 			name,
 			application_name,
+			type,
 			current_state,
 			desired_state,
+			desired_token,
+			ack_token,
+			desired_run_id,
 			last_touch,
-			type,
 			ping_timing
 		)
 		VALUES %s
 		ON CONFLICT(name) DO UPDATE SET
 			application_name = excluded.application_name,
-			current_state = excluded.current_state,
-			last_touch = excluded.last_touch,
-			type = excluded.type,
-			ping_timing = excluded.ping_timing;
+			type             = excluded.type,
+			current_state    = excluded.current_state,
+			ack_token        = excluded.ack_token,
+			last_touch       = excluded.last_touch,
+			ping_timing      = excluded.ping_timing
 	`, strings.Join(values, ","))
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+func (r *NeuronRepository) UpdateDesiredCommand(
+	ctx context.Context,
+	neuronName string,
+	state domain.NeuronState,
+	runID *int64,
+) (bool, error) {
+
+	// runID is only applied when starting progressive neurons
+	const query = `
+		UPDATE neurons
+		SET
+			desired_state = ?,
+			desired_token = desired_token + 1,
+			desired_run_id = CASE
+				WHEN ? = 'running' AND type = 'progressive' THEN ?
+				ELSE desired_run_id
+			END
+		WHERE name = ?
+	`
+
+	var runVal any = nil
+	if runID != nil {
+		runVal = *runID
+	}
+
+	res, err := r.db.ExecContext(ctx, query, string(state), string(state), runVal, neuronName)
+	if err != nil {
+		return false, fmt.Errorf("update desired command for neuron %q: %w", neuronName, err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("rows affected for neuron %q: %w", neuronName, err)
+	}
+
+	return affected > 0, nil
+}
+
+func (r *NeuronRepository) ApplyDesiredCleanup(ctx context.Context, appName string, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, len(names))
+	args := make([]any, 0, len(names)+1)
+	args = append(args, appName)
+
+	for i, name := range names {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE neurons
+		SET
+			desired_state = 'idle',
+			desired_run_id = NULL
+		WHERE application_name = ?
+		  AND name IN (%s)
+		  AND (
+		    -- Progressive: start command consumed (ack) => clear to IDLE
+		    (type = 'progressive' AND desired_state = 'running' AND ack_token >= desired_token)
+		    OR
+		    -- Stop command completed (acked and current is IDLE) => clear to IDLE
+		    (desired_state = 'stopping' AND ack_token >= desired_token AND current_state = 'idle')
+		  )
+	`, strings.Join(placeholders, ","))
+
 	_, err := r.db.ExecContext(ctx, query, args...)
 	return err
 }
