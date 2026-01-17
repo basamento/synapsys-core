@@ -22,7 +22,7 @@ export function StopNeuronButton({ neuron }: StopNeuronButtonProps) {
       size="sm"
       variant="destructive"
       // onClick={handleClick}
-      disabled={isRunning || !isActive || alreadyRequested}
+      disabled={!isRunning || !isActive || alreadyRequested}
     >
       Stop
     </Button>
