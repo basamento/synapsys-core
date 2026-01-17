@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Progress } from "@/components/ui/progress";
-import { useNeurons } from "./neurons/useNeurons";
+import { useNeurons } from "../neurons/useNeurons";
 
 export function SyncCountdown() {
   const tickMs = 70;
