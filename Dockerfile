@@ -3,19 +3,16 @@ FROM node:22-alpine AS frontend-builder
 
 WORKDIR /frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY frontend/ .
 RUN npm run build
 
 
 # ---- 2. Build Go backend (embed frontend) ----
-FROM golang:1.22-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 
 WORKDIR /app
-
-# No need for build-base unless you compile C libs, but you may keep it for safety
-RUN apk add --no-cache build-base
 
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -27,7 +24,7 @@ RUN mkdir -p web/dist
 COPY --from=frontend-builder /frontend/dist/ ./web/dist/
 
 # Build backend binary (correct entrypoint)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o synapsys-core ./cmd/core
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o synapsys-core ./cmd/api
 
 # ---- 3. Final runtime image ----
 FROM alpine:3.20
@@ -37,14 +34,11 @@ WORKDIR /app
 # copy new binary name
 COPY --from=backend-builder /app/synapsys-core /app/synapsys-core
 
-# Copy frontend static files
-#COPY --from=backend-builder /app/web/dist /app/static
+# The app opens data/nucleus.db relative to WORKDIR.
+RUN mkdir -p /app/data
 
-# directory for sqlite db
-RUN mkdir -p /data
+EXPOSE 8080
 
-EXPOSE 50166
-
-VOLUME ["/data"]
+VOLUME ["/app/data"]
 
 ENTRYPOINT ["/app/synapsys-core"]
