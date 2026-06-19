@@ -130,7 +130,7 @@ function StatusBadge({ status }: { status: "active" | "inactive" }) {
     )
 }
 
-function StateBadge({ state }: { state: "idle" | "running" | null }) {
+function StateBadge({ state }: { state: "idle" | "running" | "stopped" | null }) {
     if (state === "idle") {
         return (
             <Badge className="bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap">

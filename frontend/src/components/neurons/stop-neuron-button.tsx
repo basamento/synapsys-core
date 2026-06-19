@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { startNeuron, type Neuron } from "@/api/neurons"
+import { type Neuron } from "@/api/neurons"
 
 type StopNeuronButtonProps = {
   neuron: Neuron
