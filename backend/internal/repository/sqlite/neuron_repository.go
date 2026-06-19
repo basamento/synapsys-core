@@ -16,23 +16,37 @@ func NewNeuronRepository(db *sql.DB) *NeuronRepository {
 	return &NeuronRepository{db: db}
 }
 
-func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.Neuron, error) {
+func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.ProcessView, error) {
 	const query = `
-	SELECT
-		ID,
-		name,
-		application_name,
-		current_state,
-		desired_state,
-		desired_token,
-		ack_token,
-		desired_run_id,
-		last_touch,
-		type,
-		ping_timing
-	FROM neurons
-	ORDER BY last_touch DESC
-`
+		SELECT
+			p.id,
+			p.name,
+			p.worker_id,
+			p.type,
+			p.created_at,
+			p.ping_timing,
+			p.desired_token,
+			p.ack_token,
+			p.run_id,
+			w.id,
+			w.name,
+			w.first_connection,
+			w.last_connection,
+			w.framework,
+			w.host,
+			w.last_touch,
+			e.id,
+			e.process_id,
+			e.created_at,
+			e.modified_at,
+			e.current_status,
+			e.desired_state,
+			e.status
+		FROM processes p
+		INNER JOIN workers w ON w.id = p.worker_id
+		INNER JOIN executions e ON e.process_id = p.id
+		ORDER BY w.last_touch DESC, p.name ASC
+	`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -40,217 +54,91 @@ func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.Neuron, error)
 	}
 	defer rows.Close()
 
-	var results []domain.Neuron
+	var results []domain.ProcessView
 	for rows.Next() {
-		var n domain.Neuron
-		var runID sql.NullInt64
-		if err := rows.Scan(
-			&n.ID,
-			&n.Name,
-			&n.ApplicationName,
-			&n.CurrentState,
-			&n.DesiredState,
-			&n.DesiredToken,
-			&n.AckToken,
-			&runID,
-			&n.LastTouch,
-			&n.Type,
-			&n.PingTiming,
-		); err != nil {
+		view, err := scanProcessView(rows)
+		if err != nil {
 			return nil, err
 		}
-		results = append(results, n)
+		results = append(results, view)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate neuron rows: %w", err)
+		return nil, fmt.Errorf("iterate process rows: %w", err)
 	}
 	return results, nil
 }
 
-func (r *NeuronRepository) GetByNames(
+func (r *NeuronRepository) SyncHeartbeat(
 	ctx context.Context,
-	appName string,
-	names []string,
-) ([]domain.Neuron, error) {
-
-	if len(names) == 0 {
+	worker domain.Worker,
+	observations []domain.ProcessObservation,
+) ([]domain.ProcessCommand, error) {
+	if len(observations) == 0 {
 		return nil, nil
 	}
-
-	placeholders := make([]string, len(names))
-	args := make([]any, 0, len(names)+1)
-
-	args = append(args, appName)
-
-	for i, name := range names {
-		placeholders[i] = "?"
-		args = append(args, name)
+	if err := worker.Validate(); err != nil {
+		return nil, err
 	}
 
-	query := fmt.Sprintf(`
-		SELECT
-			name,
-			application_name,
-			current_state,
-			desired_state,
-			desired_token,
-			ack_token,
-			desired_run_id,
-			last_touch,
-			type,
-			ping_timing
-		FROM neurons
-		WHERE application_name = ?
-		  AND name IN (%s);
-	`, strings.Join(placeholders, ","))
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer tx.Rollback()
 
-	var result []domain.Neuron
+	workerID, err := upsertWorker(ctx, tx, worker)
+	if err != nil {
+		return nil, err
+	}
 
-	for rows.Next() {
-		var n domain.Neuron
-		var runID sql.NullInt64
-
-		if err := rows.Scan(
-			&n.Name,
-			&n.ApplicationName,
-			&n.CurrentState,
-			&n.DesiredState,
-			&n.DesiredToken,
-			&n.AckToken,
-			&runID,
-			&n.LastTouch,
-			&n.Type,
-			&n.PingTiming,
-		); err != nil {
+	names := make([]string, 0, len(observations))
+	for _, observation := range observations {
+		if err := validateObservation(observation); err != nil {
 			return nil, err
 		}
-
-		if runID.Valid {
-			v := runID.Int64
-			n.DesiredRunID = &v
-		} else {
-			n.DesiredRunID = nil
+		names = append(names, observation.Name)
+		if err := upsertProcessObservation(ctx, tx, workerID, worker.LastTouch, observation); err != nil {
+			return nil, err
 		}
-
-		result = append(result, n)
 	}
 
-	return result, rows.Err()
-}
-
-func (r *NeuronRepository) Upsert(ctx context.Context, n domain.Neuron) error {
-	// creating the query
-	const query = `
-		INSERT INTO neurons (
-			name,
-			application_name,
-			current_state,
-			desired_state,
-			last_touch,
-			ping_timing
-		)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(name) DO UPDATE SET
-			application_name = excluded.application_name,
-			current_state = excluded.current_state,
-			last_touch = excluded.last_touch,
-			ping_timing = excluded.ping_timing;
-		`
-	// execute the query
-	_, err := r.db.ExecContext(
-		ctx,
-		query,
-		n.Name,
-		n.ApplicationName,
-		string(n.CurrentState),
-		string(n.DesiredState),
-		n.LastTouch,
-		n.PingTiming,
-	)
-	// if query exec generate error return it
-	return err
-}
-
-func (r *NeuronRepository) BatchUpsert(ctx context.Context, neurons []domain.Neuron) error {
-	if len(neurons) == 0 {
-		return nil
+	if err := cleanupAckedCommands(ctx, tx, workerID, names, worker.LastTouch); err != nil {
+		return nil, err
 	}
 
-	var (
-		values []string
-		args   []any
-	)
-
-	for _, n := range neurons {
-		values = append(values, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		args = append(args,
-			n.Name,
-			n.ApplicationName,
-			string(n.Type),
-			string(n.CurrentState),
-			// INSERT defaults for new rows (do NOT overwrite on conflict)
-			string(n.DesiredState),
-			n.DesiredToken,
-			// observed
-			n.AckToken,
-			// nullable
-			n.DesiredRunID,
-			n.LastTouch,
-			n.PingTiming,
-		)
+	commands, err := listCommands(ctx, tx, workerID, names)
+	if err != nil {
+		return nil, err
 	}
 
-	query := fmt.Sprintf(`
-		INSERT INTO neurons (
-			name,
-			application_name,
-			type,
-			current_state,
-			desired_state,
-			desired_token,
-			ack_token,
-			desired_run_id,
-			last_touch,
-			ping_timing
-		)
-		VALUES %s
-		ON CONFLICT(name) DO UPDATE SET
-			application_name = excluded.application_name,
-			type             = excluded.type,
-			current_state    = excluded.current_state,
-			ack_token        = excluded.ack_token,
-			last_touch       = excluded.last_touch,
-			ping_timing      = excluded.ping_timing
-	`, strings.Join(values, ","))
-
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return commands, nil
 }
 
 func (r *NeuronRepository) UpdateDesiredCommand(
 	ctx context.Context,
-	neuronName string,
-	state domain.NeuronState,
+	processName string,
+	state domain.ExecutionState,
 	runID *int64,
 ) (bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
 
-	// runID is only applied when starting progressive neurons
-	const query = `
-		UPDATE neurons
+	const processQuery = `
+		UPDATE processes
 		SET
-			desired_state = ?,
 			desired_token = desired_token + 1,
-			desired_run_id = CASE
+			run_id = CASE
 				WHEN ? = 'running' AND type = 'progressive' THEN ?
-				ELSE desired_run_id
+				ELSE run_id
 			END
 		WHERE name = ?
+		RETURNING id
 	`
 
 	var runVal any = nil
@@ -258,90 +146,369 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 		runVal = *runID
 	}
 
-	res, err := r.db.ExecContext(ctx, query, string(state), string(state), runVal, neuronName)
+	var processID int64
+	err = tx.QueryRowContext(ctx, processQuery, string(state), runVal, processName).Scan(&processID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
 	if err != nil {
-		return false, fmt.Errorf("update desired command for neuron %q: %w", neuronName, err)
+		return false, fmt.Errorf("update command token for process %q: %w", processName, err)
 	}
 
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("rows affected for neuron %q: %w", neuronName, err)
+	const executionQuery = `
+		UPDATE executions
+		SET desired_state = ?, modified_at = CURRENT_TIMESTAMP
+		WHERE process_id = ?
+		RETURNING id
+	`
+
+	var executionID int64
+	if err := tx.QueryRowContext(ctx, executionQuery, string(state), processID).Scan(&executionID); err != nil {
+		return false, fmt.Errorf("update desired state for process %q: %w", processName, err)
 	}
 
-	return affected > 0, nil
+	actionType := domain.ActionTypeStop
+	if state == domain.ExecutionStateRunning {
+		actionType = domain.ActionTypeStart
+	}
+	if err := insertAction(ctx, tx, executionID, domain.ActionStatusWaiting, actionType); err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
-func (r *NeuronRepository) ApplyDesiredCleanup(ctx context.Context, appName string, names []string) error {
+func scanProcessView(rows *sql.Rows) (domain.ProcessView, error) {
+	var view domain.ProcessView
+	var runID sql.NullInt64
+	if err := rows.Scan(
+		&view.Process.ID,
+		&view.Process.Name,
+		&view.Process.WorkerID,
+		&view.Process.Type,
+		&view.Process.CreatedAt,
+		&view.Process.PingTiming,
+		&view.Process.DesiredToken,
+		&view.Process.AckToken,
+		&runID,
+		&view.Worker.ID,
+		&view.Worker.Name,
+		&view.Worker.FirstConnection,
+		&view.Worker.LastConnection,
+		&view.Worker.Framework,
+		&view.Worker.Host,
+		&view.Worker.LastTouch,
+		&view.Execution.ID,
+		&view.Execution.ProcessID,
+		&view.Execution.CreatedAt,
+		&view.Execution.ModifiedAt,
+		&view.Execution.CurrentStatus,
+		&view.Execution.DesiredState,
+		&view.Execution.Status,
+	); err != nil {
+		return domain.ProcessView{}, err
+	}
+	if runID.Valid {
+		v := runID.Int64
+		view.Process.RunID = &v
+	}
+	return view, nil
+}
+
+func upsertWorker(ctx context.Context, tx *sql.Tx, worker domain.Worker) (int64, error) {
+	const query = `
+		INSERT INTO workers (
+			name,
+			first_connection,
+			last_connection,
+			framework,
+			host,
+			last_touch
+		)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			last_connection = excluded.last_connection,
+			framework = excluded.framework,
+			host = excluded.host,
+			last_touch = excluded.last_touch
+		RETURNING id
+	`
+
+	var id int64
+	err := tx.QueryRowContext(
+		ctx,
+		query,
+		worker.Name,
+		worker.FirstConnection,
+		worker.LastConnection,
+		string(worker.Framework),
+		worker.Host,
+		worker.LastTouch,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("upsert worker %q: %w", worker.Name, err)
+	}
+	return id, nil
+}
+
+func upsertProcessObservation(
+	ctx context.Context,
+	tx *sql.Tx,
+	workerID int64,
+	now any,
+	observation domain.ProcessObservation,
+) error {
+	var previousAck int64
+	var existingExecutionID sql.NullInt64
+	_ = tx.QueryRowContext(ctx, `
+		SELECT p.ack_token, e.id
+		FROM processes p
+		LEFT JOIN executions e ON e.process_id = p.id
+		WHERE p.name = ?
+	`, observation.Name).Scan(&previousAck, &existingExecutionID)
+
+	const processQuery = `
+		INSERT INTO processes (
+			worker_id,
+			name,
+			type,
+			created_at,
+			ping_timing,
+			desired_token,
+			ack_token,
+			run_id
+		)
+		VALUES (?, ?, ?, ?, ?, 0, ?, NULL)
+		ON CONFLICT(name) DO UPDATE SET
+			worker_id = excluded.worker_id,
+			type = excluded.type,
+			ping_timing = excluded.ping_timing,
+			ack_token = excluded.ack_token
+		RETURNING id
+	`
+
+	var processID int64
+	if err := tx.QueryRowContext(
+		ctx,
+		processQuery,
+		workerID,
+		observation.Name,
+		string(observation.Type),
+		now,
+		observation.PingTiming,
+		observation.AckToken,
+	).Scan(&processID); err != nil {
+		return fmt.Errorf("upsert process %q: %w", observation.Name, err)
+	}
+
+	const executionQuery = `
+		INSERT INTO executions (
+			process_id,
+			created_at,
+			modified_at,
+			current_status,
+			desired_state,
+			status
+		)
+		VALUES (?, ?, ?, ?, 'idle', 'active')
+		ON CONFLICT(process_id) DO UPDATE SET
+			current_status = excluded.current_status,
+			status = 'active',
+			modified_at = excluded.modified_at
+		RETURNING id
+	`
+
+	var executionID int64
+	if err := tx.QueryRowContext(
+		ctx,
+		executionQuery,
+		processID,
+		now,
+		now,
+		string(observation.CurrentStatus),
+	).Scan(&executionID); err != nil {
+		return fmt.Errorf("upsert execution for process %q: %w", observation.Name, err)
+	}
+
+	if !existingExecutionID.Valid {
+		return insertAction(ctx, tx, executionID, domain.ActionStatusDone, domain.ActionTypeCreate)
+	}
+	if observation.AckToken > previousAck {
+		return insertAction(ctx, tx, executionID, domain.ActionStatusDone, domain.ActionTypeAck)
+	}
+	return nil
+}
+
+func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names []string, now any) error {
 	if len(names) == 0 {
 		return nil
 	}
 
+	placeholders, args := namesFilterArgs(workerID, names)
+	selectArgs := append([]any{}, args...)
+	query := fmt.Sprintf(`
+		SELECT e.id
+		FROM processes p
+		INNER JOIN executions e ON e.process_id = p.id
+		WHERE p.worker_id = ?
+		  AND p.name IN (%s)
+		  AND (
+			(p.type = 'progressive' AND e.desired_state = 'running' AND p.ack_token >= p.desired_token)
+			OR
+			(e.desired_state = 'stopping' AND p.ack_token >= p.desired_token AND e.current_status = 'idle')
+		  )
+	`, placeholders)
+
+	rows, err := tx.QueryContext(ctx, query, selectArgs...)
+	if err != nil {
+		return err
+	}
+	var executionIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		executionIDs = append(executionIDs, id)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(executionIDs) == 0 {
+		return nil
+	}
+
+	for _, executionID := range executionIDs {
+		if err := insertAction(ctx, tx, executionID, domain.ActionStatusDone, domain.ActionTypeAck); err != nil {
+			return err
+		}
+	}
+
+	executionPlaceholders, executionArgs := int64FilterArgs(executionIDs)
+	executionArgs = append([]any{now}, executionArgs...)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE executions
+		SET desired_state = 'idle', modified_at = ?
+		WHERE id IN (%s)
+	`, executionPlaceholders), executionArgs...); err != nil {
+		return err
+	}
+
+	processPlaceholders, processArgs := namesFilterArgs(workerID, names)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE processes
+		SET run_id = NULL
+		WHERE worker_id = ?
+		  AND name IN (%s)
+	`, processPlaceholders), processArgs...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func listCommands(ctx context.Context, tx *sql.Tx, workerID int64, names []string) ([]domain.ProcessCommand, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+
+	placeholders, args := namesFilterArgs(workerID, names)
+	query := fmt.Sprintf(`
+		SELECT
+			p.name,
+			p.type,
+			e.desired_state,
+			p.desired_token,
+			p.run_id
+		FROM processes p
+		INNER JOIN executions e ON e.process_id = p.id
+		WHERE p.worker_id = ?
+		  AND p.name IN (%s)
+		ORDER BY p.name ASC
+	`, placeholders)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var commands []domain.ProcessCommand
+	for rows.Next() {
+		var command domain.ProcessCommand
+		var runID sql.NullInt64
+		if err := rows.Scan(
+			&command.Name,
+			&command.Type,
+			&command.DesiredState,
+			&command.DesiredToken,
+			&runID,
+		); err != nil {
+			return nil, err
+		}
+		if runID.Valid {
+			v := runID.Int64
+			command.RunID = &v
+		}
+		commands = append(commands, command)
+	}
+	return commands, rows.Err()
+}
+
+func insertAction(ctx context.Context, tx *sql.Tx, executionID int64, status domain.ActionStatus, actionType domain.ActionType) error {
+	const query = `
+		INSERT INTO actions (execution_id, created_at, status, type)
+		VALUES (?, CURRENT_TIMESTAMP, ?, ?)
+	`
+	if _, err := tx.ExecContext(ctx, query, executionID, string(status), string(actionType)); err != nil {
+		return fmt.Errorf("insert action for execution %d: %w", executionID, err)
+	}
+	return nil
+}
+
+func validateObservation(observation domain.ProcessObservation) error {
+	process := domain.Process{
+		Name:         observation.Name,
+		Type:         observation.Type,
+		PingTiming:   observation.PingTiming,
+		DesiredToken: 0,
+		AckToken:     observation.AckToken,
+	}
+	if err := process.Validate(); err != nil {
+		return err
+	}
+	execution := domain.Execution{
+		CurrentStatus: observation.CurrentStatus,
+		DesiredState:  domain.ExecutionStateIdle,
+		Status:        domain.ExecutionStatusActive,
+	}
+	return execution.Validate()
+}
+
+func namesFilterArgs(workerID int64, names []string) (string, []any) {
 	placeholders := make([]string, len(names))
 	args := make([]any, 0, len(names)+1)
-	args = append(args, appName)
-
+	args = append(args, workerID)
 	for i, name := range names {
 		placeholders[i] = "?"
 		args = append(args, name)
 	}
-
-	query := fmt.Sprintf(`
-		UPDATE neurons
-		SET
-			desired_state = 'idle',
-			desired_run_id = NULL
-		WHERE application_name = ?
-		  AND name IN (%s)
-		  AND (
-		    -- Progressive: start command consumed (ack) => clear to IDLE
-		    (type = 'progressive' AND desired_state = 'running' AND ack_token >= desired_token)
-		    OR
-		    -- Stop command completed (acked and current is IDLE) => clear to IDLE
-		    (desired_state = 'stopping' AND ack_token >= desired_token AND current_state = 'idle')
-		  )
-	`, strings.Join(placeholders, ","))
-
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	return strings.Join(placeholders, ","), args
 }
 
-func (r *NeuronRepository) UpdateDesiredState(
-	ctx context.Context,
-	neuronName string,
-	state domain.NeuronState,
-) (bool, error) {
-	const query = `
-		UPDATE neurons
-		SET desired_state = ?
-		WHERE name = ?
-	`
-	res, err := r.db.ExecContext(ctx, query, state, neuronName)
-	if err != nil {
-		return false, fmt.Errorf("update desired_state for neuron %q: %w", neuronName, err)
+func int64FilterArgs(ids []int64) (string, []any) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("rows affected for neuron %q: %w", neuronName, err)
-	}
-
-	return affected > 0, nil
-}
-
-func (r *NeuronRepository) WithTx(
-	ctx context.Context,
-	fn func(*sql.Tx) error,
-) error {
-
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	return tx.Commit()
+	return strings.Join(placeholders, ","), args
 }

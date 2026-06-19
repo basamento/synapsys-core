@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"synapsys-core/internal/domain"
@@ -16,8 +17,12 @@ type NeuronHandler struct {
 
 type neuronHeartbeatRequestDTO struct {
 	ApplicationName string          `json:"applicationName"`
+	WorkerName      string          `json:"workerName"`
+	Framework       string          `json:"framework"`
+	Host            string          `json:"host"`
 	PingTiming      int             `json:"pingTiming"`
 	Neurons         []neuronInfoDTO `json:"neurons"`
+	Processes       []neuronInfoDTO `json:"processes"`
 }
 
 type neuronInfoDTO struct {
@@ -58,7 +63,7 @@ func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// parse to service request
-	req, err := toSyncServiceRequest(dto)
+	req, err := toSyncServiceRequest(dto, r.RemoteAddr)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -104,16 +109,21 @@ func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func toSyncServiceRequest(dto neuronHeartbeatRequestDTO) (service.NeuronHeartbeatRequest, error) {
-	neurons := make([]service.NeuronHeartbeat, 0, len(dto.Neurons))
+func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (service.NeuronHeartbeatRequest, error) {
+	processes := dto.Processes
+	if len(processes) == 0 {
+		processes = dto.Neurons
+	}
 
-	for _, n := range dto.Neurons {
+	neurons := make([]service.NeuronHeartbeat, 0, len(processes))
+
+	for _, n := range processes {
 		// Normalize to lowercase to support Java enums RUNNING/IDLE/STOPPING etc.
-		cs := domain.NeuronState(strings.ToLower(n.CurrentState))
-		nt := domain.NeuronType(strings.ToLower(n.Type))
+		cs := domain.ExecutionState(strings.ToLower(n.CurrentState))
+		nt := domain.ProcessType(strings.ToLower(n.Type))
 
 		if !cs.Valid() || !nt.Valid() {
-			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid neuron current state or type")
+			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process current state or type")
 		}
 
 		var ack int64 = 0
@@ -129,8 +139,27 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO) (service.NeuronHeartbea
 		})
 	}
 
+	framework := domain.WorkerFramework(strings.ToLower(dto.Framework))
+	if framework == "" {
+		framework = domain.WorkerFrameworkSpringBoot
+	}
+	if !framework.Valid() {
+		return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid worker framework")
+	}
+
+	host := dto.Host
+	if host == "" {
+		host = remoteAddr
+		if h, _, err := net.SplitHostPort(remoteAddr); err == nil {
+			host = h
+		}
+	}
+
 	return service.NeuronHeartbeatRequest{
 		ApplicationName: dto.ApplicationName,
+		WorkerName:      dto.WorkerName,
+		Framework:       framework,
+		Host:            host,
 		PingTiming:      dto.PingTiming,
 		Neurons:         neurons,
 	}, nil

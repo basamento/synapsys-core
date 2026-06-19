@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { type Neuron } from "@/api/neurons"
+import { stopNeuron, type Neuron } from "@/api/neurons"
 
 type StopNeuronButtonProps = {
   neuron: Neuron
@@ -9,22 +9,22 @@ export function StopNeuronButton({ neuron }: StopNeuronButtonProps) {
 
   const isRunning = neuron.currentState === "running"
   const isActive = neuron.status === "active"
-  const alreadyRequested = neuron.desiredState === "running"
+  const inFlight = neuron.desiredToken > neuron.ackToken
+  const alreadyRequested = neuron.desiredState === "stopping"
 
-  // async function handleClick() {
-  //   if (isRunning) return
-  //   const response = await startNeuron(neuron)
-  //   console.log("Neuron started:", response)
-  // }
+  async function handleClick() {
+    if (!isRunning || !isActive || inFlight || alreadyRequested) return
+    await stopNeuron(neuron)
+  }
 
   return (
     <Button
       size="sm"
       variant="destructive"
-      // onClick={handleClick}
-      disabled={!isRunning || !isActive || alreadyRequested}
+      onClick={handleClick}
+      disabled={!isRunning || !isActive || inFlight || alreadyRequested}
     >
-      Stop
+      {alreadyRequested || inFlight ? "Requested" : "Stop"}
     </Button>
   )
 }

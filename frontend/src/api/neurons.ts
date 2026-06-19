@@ -4,6 +4,10 @@ export type Neuron = {
   id: number;
   name: string;
   applicationName: string;
+  workerId: number;
+  workerName: string;
+  framework: "springboot" | "nodejs" | "python" | "unknown";
+  host: string;
   type: "endless" | "progressive";
   currentState: "idle" | "running" | "stopping";
   desiredState: "idle" | "running" | "stopping";
@@ -31,3 +35,10 @@ export function startNeuron(neuron: Neuron) {
   })
 }
 
+export function stopNeuron(neuron: Neuron) {
+  console.log("Stopping neuron with ID:", neuron.id)
+  return apiFetch<void>(`/api/neuron`, {
+    method: "PUT",
+    body: JSON.stringify({ neuronName: neuron.name, desiredState: "stopping" }),
+  })
+}
