@@ -10,6 +10,7 @@ func RegisterHealth(mux *http.ServeMux, h *handler.HealthHandler) {
 }
 
 func RegisterNeurons(mux *http.ServeMux, h *handler.NeuronHandler) {
+	mux.HandleFunc("POST /api/v1/workers/heartbeat", h.Sync)
 	mux.HandleFunc("POST /api/neuron", h.Sync)
 	mux.HandleFunc("GET /api/neuron", h.ListAll)
 	mux.HandleFunc("PUT /api/neuron", h.UpdateDesiredState)

@@ -16,13 +16,14 @@ type NeuronHandler struct {
 }
 
 type neuronHeartbeatRequestDTO struct {
-	ApplicationName string          `json:"applicationName"`
-	WorkerName      string          `json:"workerName"`
-	Framework       string          `json:"framework"`
-	Host            string          `json:"host"`
-	PingTiming      int             `json:"pingTiming"`
-	Neurons         []neuronInfoDTO `json:"neurons"`
-	Processes       []neuronInfoDTO `json:"processes"`
+	ApplicationName   string          `json:"applicationName"`
+	WorkerName        string          `json:"workerName"`
+	Framework         string          `json:"framework"`
+	Host              string          `json:"host"`
+	PingTiming        int             `json:"pingTiming"`
+	HeartbeatInterval int             `json:"heartbeatInterval"`
+	Neurons           []neuronInfoDTO `json:"neurons"`
+	Processes         []neuronInfoDTO `json:"processes"`
 }
 
 type neuronInfoDTO struct {
@@ -34,6 +35,10 @@ type neuronInfoDTO struct {
 	DesiredToken *int64 `json:"desiredToken,omitempty"` // optional/debug
 	RunId        *int64 `json:"runId,omitempty"`        // optional/debug
 	AckToken     *int64 `json:"ackToken,omitempty"`     // IMPORTANT (should be sent)
+}
+
+type heartbeatProcessesResponseDTO struct {
+	Processes []neuronInfoDTO `json:"processes"`
 }
 
 func NewNeuronHandler(service *service.NeuronService) *NeuronHandler {
@@ -76,9 +81,13 @@ func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// return 200 and response body
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	w.WriteHeader(http.StatusOK)
+	responseBody := any(response)
+	if isWorkerHeartbeatPath(r.URL.Path) {
+		responseBody = toHeartbeatProcessesResponse(response, dto)
+	}
+	if err := json.NewEncoder(w).Encode(responseBody); err != nil {
 		log.Printf("Failed to encode response: %v", err)
 	}
 }
@@ -155,12 +164,51 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 		}
 	}
 
+	heartbeatInterval := dto.HeartbeatInterval
+	if heartbeatInterval == 0 {
+		heartbeatInterval = dto.PingTiming
+	}
+
 	return service.NeuronHeartbeatRequest{
 		ApplicationName: dto.ApplicationName,
 		WorkerName:      dto.WorkerName,
 		Framework:       framework,
 		Host:            host,
-		PingTiming:      dto.PingTiming,
+		PingTiming:      heartbeatInterval,
 		Neurons:         neurons,
 	}, nil
+}
+
+func isWorkerHeartbeatPath(path string) bool {
+	return path == "/api/v1/workers/heartbeat"
+}
+
+func toHeartbeatProcessesResponse(
+	response service.NeuronHeartbeatResponse,
+	request neuronHeartbeatRequestDTO,
+) heartbeatProcessesResponseDTO {
+	processByName := make(map[string]neuronInfoDTO, len(request.Processes)+len(request.Neurons))
+	for _, process := range request.Neurons {
+		processByName[process.Name] = process
+	}
+	for _, process := range request.Processes {
+		processByName[process.Name] = process
+	}
+
+	processes := make([]neuronInfoDTO, 0, len(response.Neurons))
+	for _, command := range response.Neurons {
+		observed := processByName[command.Name]
+		desiredToken := command.DesiredToken
+		processes = append(processes, neuronInfoDTO{
+			Name:         command.Name,
+			Type:         string(command.Type),
+			CurrentState: observed.CurrentState,
+			DesiredState: string(command.DesiredState),
+			DesiredToken: &desiredToken,
+			RunId:        command.RunId,
+			AckToken:     observed.AckToken,
+		})
+	}
+
+	return heartbeatProcessesResponseDTO{Processes: processes}
 }
