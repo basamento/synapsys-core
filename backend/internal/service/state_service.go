@@ -47,11 +47,27 @@ type ActionDTO struct {
 	Type        string    `json:"type"`
 }
 
+type PageInfoDTO struct {
+	Page       int `json:"page"`
+	PageSize   int `json:"pageSize"`
+	TotalItems int `json:"totalItems"`
+	TotalPages int `json:"totalPages"`
+}
+
+type StatePaginationDTO struct {
+	Workers    PageInfoDTO `json:"workers"`
+	Processes  PageInfoDTO `json:"processes"`
+	Executions PageInfoDTO `json:"executions"`
+	Actions    PageInfoDTO `json:"actions"`
+}
+
 type StateResponse struct {
-	Workers    []WorkerDTO    `json:"workers"`
-	Processes  []ProcessDTO   `json:"processes"`
-	Executions []ExecutionDTO `json:"executions"`
-	Actions    []ActionDTO    `json:"actions"`
+	Workers          []WorkerDTO        `json:"workers"`
+	Processes        []ProcessDTO       `json:"processes"`
+	Executions       []ExecutionDTO     `json:"executions"`
+	Actions          []ActionDTO        `json:"actions"`
+	ProcessOverviews []NeuronDTO        `json:"processOverviews"`
+	Pagination       StatePaginationDTO `json:"pagination"`
 }
 
 type StateService struct {
@@ -62,17 +78,19 @@ func NewStateService(repo repository.NeuronRepository) *StateService {
 	return &StateService{repo: repo}
 }
 
-func (s *StateService) GetState(ctx context.Context) (StateResponse, error) {
-	state, err := s.repo.ListState(ctx)
+func (s *StateService) GetState(ctx context.Context, pagination domain.StatePagination) (StateResponse, error) {
+	state, err := s.repo.ListState(ctx, pagination)
 	if err != nil {
 		return StateResponse{}, err
 	}
 
 	return StateResponse{
-		Workers:    toWorkerDTOs(state.Workers),
-		Processes:  toProcessDTOs(state.Processes),
-		Executions: toExecutionDTOs(state.Executions),
-		Actions:    toActionDTOs(state.Actions),
+		Workers:          toWorkerDTOs(state.Workers),
+		Processes:        toProcessDTOs(state.Processes),
+		Executions:       toExecutionDTOs(state.Executions),
+		Actions:          toActionDTOs(state.Actions),
+		ProcessOverviews: toProcessOverviewDTOs(state.ProcessViews),
+		Pagination:       toStatePaginationDTO(state.Pagination),
 	}, nil
 }
 
@@ -138,4 +156,31 @@ func toActionDTOs(actions []domain.Action) []ActionDTO {
 		})
 	}
 	return dtos
+}
+
+func toProcessOverviewDTOs(views []domain.ProcessView) []NeuronDTO {
+	now := time.Now()
+	dtos := make([]NeuronDTO, 0, len(views))
+	for _, view := range views {
+		dtos = append(dtos, toNeuronDTO(view, now))
+	}
+	return dtos
+}
+
+func toStatePaginationDTO(pagination domain.StatePageInfo) StatePaginationDTO {
+	return StatePaginationDTO{
+		Workers:    toPageInfoDTO(pagination.Workers),
+		Processes:  toPageInfoDTO(pagination.Processes),
+		Executions: toPageInfoDTO(pagination.Executions),
+		Actions:    toPageInfoDTO(pagination.Actions),
+	}
+}
+
+func toPageInfoDTO(page domain.PageInfo) PageInfoDTO {
+	return PageInfoDTO{
+		Page:       page.Page,
+		PageSize:   page.PageSize,
+		TotalItems: page.TotalItems,
+		TotalPages: page.TotalPages,
+	}
 }

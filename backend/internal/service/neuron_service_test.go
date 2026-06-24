@@ -94,7 +94,12 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 		t.Fatalf("worker name = %q, want worker-a", got)
 	}
 
-	state, err := stateService.GetState(t.Context())
+	state, err := stateService.GetState(t.Context(), domain.StatePagination{
+		Workers:    domain.CollectionPagination{Page: 1, PageSize: 10},
+		Processes:  domain.CollectionPagination{Page: 1, PageSize: 10},
+		Executions: domain.CollectionPagination{Page: 1, PageSize: 10},
+		Actions:    domain.CollectionPagination{Page: 1, PageSize: 10},
+	})
 	if err != nil {
 		t.Fatalf("get state: %v", err)
 	}
@@ -109,5 +114,8 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 	}
 	if len(state.Actions) == 0 {
 		t.Fatal("expected state actions to include command history")
+	}
+	if got := state.Pagination.Processes.TotalItems; got != 1 {
+		t.Fatalf("state process total items = %d, want 1", got)
 	}
 }

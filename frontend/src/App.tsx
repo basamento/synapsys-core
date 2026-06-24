@@ -15,7 +15,7 @@ function App() {
           <SideBar />
           <SidebarInset className="min-h-0 overflow-hidden pl-3 sm:pl-4">
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-xs">
-              <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+              <div className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
                 <Outlet />
               </div>
             </div>
