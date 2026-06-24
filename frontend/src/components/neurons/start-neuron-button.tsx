@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { startNeuron, type Neuron } from "@/api/neurons";
+import { startNeuron, type ProcessOverview } from "@/api/neurons";
 
-type StartNeuronButtonProps = { neuron: Neuron };
+type StartNeuronButtonProps = { neuron: ProcessOverview };
 
 export function StartNeuronButton({ neuron }: StartNeuronButtonProps) {
   const isActive = neuron.status === "active";

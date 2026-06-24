@@ -19,7 +19,9 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	service := NewNeuronsService(sqlite.NewNeuronRepository(database))
+	repo := sqlite.NewNeuronRepository(database)
+	service := NewNeuronsService(repo)
+	stateService := NewStateService(repo)
 	req := NeuronHeartbeatRequest{
 		WorkerName: "worker-a",
 		Framework:  domain.WorkerFrameworkSpringBoot,
@@ -90,5 +92,22 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 	}
 	if got := list.Neurons[0].WorkerName; got != "worker-a" {
 		t.Fatalf("worker name = %q, want worker-a", got)
+	}
+
+	state, err := stateService.GetState(t.Context())
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if len(state.Workers) != 1 {
+		t.Fatalf("state workers = %d, want 1", len(state.Workers))
+	}
+	if len(state.Processes) != 1 {
+		t.Fatalf("state processes = %d, want 1", len(state.Processes))
+	}
+	if len(state.Executions) != 1 {
+		t.Fatalf("state executions = %d, want 1", len(state.Executions))
+	}
+	if len(state.Actions) == 0 {
+		t.Fatal("expected state actions to include command history")
 	}
 }

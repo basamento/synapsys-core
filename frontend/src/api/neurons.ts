@@ -1,44 +1,29 @@
 import { apiFetch } from "./client"
+import type { ExecutionState, ProcessOverview } from "@/types/entities";
 
-export type Neuron = {
-  id: number;
-  name: string;
-  applicationName: string;
-  workerId: number;
-  workerName: string;
-  framework: "springboot" | "nodejs" | "python" | "unknown";
-  host: string;
-  type: "endless" | "progressive";
-  currentState: "idle" | "running" | "stopping";
-  desiredState: "idle" | "running" | "stopping";
-  status: "active" | "inactive";
-  lastTouch: string;
-  pingTiming: number;
-  desiredToken: number;
-  ackToken: number;
-  runId?: number | null;
-};
+export type { ProcessOverview };
 
-export type ListNeuronsResponse = {
-  neurons: Neuron[];
+export type ListProcessOverviewsResponse = {
+  neurons: ProcessOverview[];
 }
 
-export function listNeurons() {
-  return apiFetch<ListNeuronsResponse>("/api/neuron")
+export async function listProcessOverviews() {
+  const res = await apiFetch<ListProcessOverviewsResponse>("/api/neuron");
+  return { processOverviews: res.neurons };
 }
 
-export function startNeuron(neuron: Neuron) {
-  console.log("Starting neuron with ID:", neuron.id)
+export function startNeuron(process: ProcessOverview) {
+  console.log("Starting process with ID:", process.id)
   return apiFetch<void>(`/api/neuron`, {
     method: "PUT",
-    body: JSON.stringify({ neuronName: neuron.name, desiredState: "running" }),
+    body: JSON.stringify({ neuronName: process.name, desiredState: "running" satisfies ExecutionState }),
   })
 }
 
-export function stopNeuron(neuron: Neuron) {
-  console.log("Stopping neuron with ID:", neuron.id)
+export function stopNeuron(process: ProcessOverview) {
+  console.log("Stopping process with ID:", process.id)
   return apiFetch<void>(`/api/neuron`, {
     method: "PUT",
-    body: JSON.stringify({ neuronName: neuron.name, desiredState: "stopping" }),
+    body: JSON.stringify({ neuronName: process.name, desiredState: "stopping" satisfies ExecutionState }),
   })
 }

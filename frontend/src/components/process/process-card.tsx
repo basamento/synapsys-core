@@ -1,49 +1,49 @@
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import { Card } from "../ui/card";
-import type { Neuron } from "@/api/neurons";
-import { StartNeuronButton } from "./start-neuron-button";
-import { StopNeuronButton } from "./stop-neuron-button";
+import type { ProcessOverview } from "@/api/neurons";
+import { StartNeuronButton } from "../neurons/start-neuron-button";
+import { StopNeuronButton } from "../neurons/stop-neuron-button";
 
-type NeuronCardProps = {
-  neuron: Neuron;
+type WorkerCardProps = {
+  worker: ProcessOverview;
 };
 
-export function NeuronCard({ neuron }: NeuronCardProps) {
+export function ProcessCard({ worker }: WorkerCardProps) {
   return (
-    <Card key={neuron.id} className="p-4 transition-colors hover:bg-muted/40">
+    <Card key={worker.id} className="p-4 transition-colors hover:bg-muted/40">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-semibold truncate">{neuron.name}</h2>
+              <h2 className="text-base font-semibold truncate">{worker.name}</h2>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <TypeBadge type={neuron.type} />
-                <StatusBadge status={neuron.status} />
-                <StateBadge state={neuron.currentState} />
+                <TypeBadge type={worker.type} />
+                <StatusBadge status={worker.status} />
+                <StateBadge state={worker.currentState} />
               </div>
             </div>
 
             <div className="mt-1 text-xs text-muted-foreground">
               Worker:{" "}
-              <span className="font-mono text-foreground/90">{neuron.workerName}</span>
+              <span className="font-mono text-foreground/90">{worker.workerName}</span>
               {" - Host: "}
-              <span className="font-mono text-foreground/90">{neuron.host}</span>
+              <span className="font-mono text-foreground/90">{worker.workerName}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:justify-end">
-            <StartNeuronButton neuron={neuron} />
-            <StopNeuronButton neuron={neuron} />
+            <StartNeuronButton neuron={worker} />
+            <StopNeuronButton neuron={worker} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Metric label="Last Touch" value={formatDateTime(neuron.lastTouch)} />
-          <Metric label="Framework" value={formatFramework(neuron.framework)} />
-          <Metric label="Type" value={neuron.type === "endless" ? "Endless" : "Progressive"} />
-          <Metric label="State" value={formatState(neuron.currentState)} />
+          <Metric label="Last Touch" value={formatDateTime(worker.lastTouch)} />
+          <Metric label="Framework" value={formatFramework(worker.framework)} />
+          <Metric label="Type" value={worker.type === "endless" ? "Endless" : "Progressive"} />
+          <Metric label="State" value={formatState(worker.currentState)} />
         </div>
       </div>
     </Card>
@@ -114,7 +114,7 @@ function formatState(state: "idle" | "running" | "stopping") {
   return "Stopping";
 }
 
-function formatFramework(framework: Neuron["framework"]) {
+function formatFramework(framework: ProcessOverview["framework"]) {
   if (framework === "springboot") return "Spring Boot";
   if (framework === "nodejs") return "Node.js";
   if (framework === "python") return "Python";

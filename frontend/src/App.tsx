@@ -1,37 +1,26 @@
-import { Separator } from "@/components/ui/separator"
-import { useNeurons } from "./components/neurons/useNeurons"
-import { NeuronCard } from "./components/neurons/neuron-card"
-import { NeuronsHeader } from "./components/layout/neurons-header"
+import { Outlet } from "react-router-dom"
+
 import { ThemeProvider } from "./components/layout/theme-provider"
 import { TopBar } from "./components/layout/top-bar"
+import { SideBar } from "./components/layout/side-bar"
+import { SidebarInset, SidebarProvider } from "./components/ui/sidebar"
 
 
 function App() {
-
-  const { neurons } = useNeurons()
-
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <div className="min-h-screen flex flex-col">
+      <div className="flex h-svh flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 p-6">
-          <div className="rounded-xl border bg-card">
-            <div className="p-4 sm:p-6">
-              <NeuronsHeader total={neurons.length} />
-              <Separator className="my-4" />
-              <div className="flex flex-col gap-3">
-                {neurons.map((neuron) => (
-                  <NeuronCard neuron={neuron} />
-                ))}
-                {neurons.length === 0 && (
-                  <div className="text-sm text-muted-foreground py-10 text-center">
-                    No neurons yet.
-                  </div>
-                )}
+        <SidebarProvider className="min-h-0 flex-1 overflow-hidden px-4 pb-4 pt-3 sm:px-6">
+          <SideBar />
+          <SidebarInset className="min-h-0 overflow-hidden pl-3 sm:pl-4">
+            <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-xs">
+              <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+                <Outlet />
               </div>
             </div>
-          </div>
-        </main>
+          </SidebarInset>
+        </SidebarProvider>
       </div>
     </ThemeProvider>
   )

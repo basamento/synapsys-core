@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button"
-import { stopNeuron, type Neuron } from "@/api/neurons"
+import { stopNeuron, type ProcessOverview } from "@/api/neurons"
 
 type StopNeuronButtonProps = {
-  neuron: Neuron
+  neuron: ProcessOverview
 }
 
 export function StopNeuronButton({ neuron }: StopNeuronButtonProps) {

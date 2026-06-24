@@ -1,13 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
-import { NeuronsProvider } from './components/neurons/neurons-provider.tsx'
+import { router } from './router.tsx'
+import { RouterProvider } from 'react-router-dom'
+import { AppDataProvider } from './state/app-data-provider.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <NeuronsProvider>
-      <App />
-    </NeuronsProvider>
+    <AppDataProvider>
+      <RouterProvider router={router} />
+    </AppDataProvider>
   </StrictMode>,
 )

@@ -33,6 +33,10 @@ func main() {
 	neuronService := service.NewNeuronsService(neuronRepository)
 	neuronHandler := handler.NewNeuronHandler(neuronService)
 	server.RegisterNeurons(mux, neuronHandler)
+	// register app state
+	stateService := service.NewStateService(neuronRepository)
+	stateHandler := handler.NewStateHandler(stateService)
+	server.RegisterState(mux, stateHandler)
 	// register static frontend pages
 	web.RegisterEmbeddedStatic(mux)
 	// start the server

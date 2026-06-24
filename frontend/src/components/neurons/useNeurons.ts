@@ -1,8 +1,15 @@
-import { useContext } from "react";
-import { NeuronsContext } from "./neurons-context";
+import { useMemo } from "react";
+
+import { useAppData } from "@/state/use-app-data";
 
 export function useNeurons() {
-  const ctx = useContext(NeuronsContext);
-  if (!ctx) throw new Error("useNeurons must be used within NeuronsProvider");
-  return ctx;
+  const { processOverviews, refreshAppData } = useAppData();
+
+  return useMemo(
+    () => ({
+      neurons: processOverviews,
+      refreshNeurons: refreshAppData,
+    }),
+    [processOverviews, refreshAppData],
+  );
 }
