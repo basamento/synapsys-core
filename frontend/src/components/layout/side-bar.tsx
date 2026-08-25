@@ -1,4 +1,4 @@
-import { Home, LoaderCircle, PcCase } from "lucide-react";
+import { BarChart3, History, LoaderCircle, PcCase, PlaySquare } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
@@ -15,9 +15,9 @@ import {
 
 const navItems = [
     {
-        title: "Home",
+        title: "Summary",
         href: "/",
-        icon: Home,
+        icon: BarChart3,
     },
     {
         title: "Workers",
@@ -28,6 +28,16 @@ const navItems = [
         title: "Processes",
         href: "/processes",
         icon: LoaderCircle,
+    },
+    {
+        title: "Executions",
+        href: "/executions",
+        icon: PlaySquare,
+    },
+    {
+        title: "Actions",
+        href: "/actions",
+        icon: History,
     },
 ];
 
@@ -40,21 +50,6 @@ export function SideBar() {
             variant="floating"
             className="left-4 top-[5.25rem] h-[calc(100svh-6.25rem)] p-0 sm:left-6"
         >
-            {/* <SidebarHeader>
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <div className="flex items-center gap-2">
-                            <SidebarMenuButton size="lg" tooltip="Synapsys" className="flex-1">
-                                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                                    S
-                                </div>
-                                <span className="font-semibold">Synapsys</span>
-                            </SidebarMenuButton>
-                        </div>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-            </SidebarHeader> */}
-
             <SidebarContent>
                 <SidebarGroup>
                     <SidebarGroupLabel>Navigation</SidebarGroupLabel>

@@ -1,8 +1,10 @@
 import { createBrowserRouter } from "react-router-dom";
 import App from "./App";
-import { HomePage } from "./pages/neurons/neurons-page";
+import { SummaryPage } from "./pages/summary/summary-page";
 import { WorkersPage } from "./pages/workers/workers-page";
 import { ProcessesPage } from "./pages/processes/processes-page";
+import { ExecutionsPage } from "./pages/executions/executions-page";
+import { ActionsPage } from "./pages/actions/actions-page";
 
 export const router = createBrowserRouter([
   {
@@ -11,7 +13,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <HomePage />,
+        element: <SummaryPage />,
       },
       {
         path: "workers",
@@ -20,6 +22,14 @@ export const router = createBrowserRouter([
       {
         path: "processes",
         element: <ProcessesPage />,
+      },
+      {
+        path: "executions",
+        element: <ExecutionsPage />,
+      },
+      {
+        path: "actions",
+        element: <ActionsPage />,
       },
     ],
   },
