@@ -1,5 +1,5 @@
 import { apiFetch } from "./client"
-import type { ExecutionState, ProcessOverview } from "@/types/entities";
+import type { DesiredState, ProcessOverview } from "@/types/entities";
 
 export type { ProcessOverview };
 
@@ -12,18 +12,18 @@ export async function listProcessOverviews() {
   return { processOverviews: res.neurons };
 }
 
-export function startNeuron(process: ProcessOverview) {
-  console.log("Starting process with ID:", process.id)
-  return apiFetch<void>(`/api/neuron`, {
+// Processes are addressed by id: names are only unique within a worker.
+function setDesiredState(process: ProcessOverview, desiredState: DesiredState) {
+  return apiFetch<void>(`/api/processes/${process.id}/desired-state`, {
     method: "PUT",
-    body: JSON.stringify({ neuronName: process.name, desiredState: "running" satisfies ExecutionState }),
+    body: JSON.stringify({ desiredState }),
   })
 }
 
+export function startNeuron(process: ProcessOverview) {
+  return setDesiredState(process, "running")
+}
+
 export function stopNeuron(process: ProcessOverview) {
-  console.log("Stopping process with ID:", process.id)
-  return apiFetch<void>(`/api/neuron`, {
-    method: "PUT",
-    body: JSON.stringify({ neuronName: process.name, desiredState: "stopping" satisfies ExecutionState }),
-  })
+  return setDesiredState(process, "stopping")
 }

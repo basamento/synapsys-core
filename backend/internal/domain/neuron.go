@@ -28,6 +28,7 @@ const (
 	ExecutionStateIdle     ExecutionState = "idle"
 	ExecutionStateRunning  ExecutionState = "running"
 	ExecutionStateStopping ExecutionState = "stopping"
+	ExecutionStateFailed   ExecutionState = "failed"
 )
 
 const (
@@ -60,6 +61,7 @@ const (
 	NeuronStateIdle       = ExecutionStateIdle
 	NeuronStateRunning    = ExecutionStateRunning
 	NeuronStateStopping   = ExecutionStateStopping
+	NeuronStateFailed     = ExecutionStateFailed
 	NeuronStatusActive    = ExecutionStatusActive
 	NeuronStatusInactive  = ExecutionStatusInactive
 )
@@ -75,8 +77,27 @@ func (t ProcessType) Valid() bool {
 	return t == ProcessTypeEndless || t == ProcessTypeProgressive
 }
 
+// Valid reports whether the state may be observed on a running process.
+// Workers report "failed" after a process crashes, so it is accepted here.
 func (s ExecutionState) Valid() bool {
-	return s == ExecutionStateIdle || s == ExecutionStateRunning || s == ExecutionStateStopping
+	return s == ExecutionStateIdle ||
+		s == ExecutionStateRunning ||
+		s == ExecutionStateStopping ||
+		s == ExecutionStateFailed
+}
+
+// ValidAsDesired reports whether the state may be commanded by an operator.
+// "failed" is only ever observed, never requested.
+func (s ExecutionState) ValidAsDesired() bool {
+	return s == ExecutionStateIdle ||
+		s == ExecutionStateRunning ||
+		s == ExecutionStateStopping
+}
+
+// Terminal reports whether a process in this state has stopped doing work,
+// which is what lets Core consider a stop command complete.
+func (s ExecutionState) Terminal() bool {
+	return s == ExecutionStateIdle || s == ExecutionStateFailed
 }
 
 func (s ExecutionStatus) Valid() bool {
@@ -160,7 +181,7 @@ func (e Execution) Validate() error {
 	if !e.CurrentStatus.Valid() {
 		return fmt.Errorf("invalid execution current status: %q", e.CurrentStatus)
 	}
-	if !e.DesiredState.Valid() {
+	if !e.DesiredState.ValidAsDesired() {
 		return fmt.Errorf("invalid execution desired state: %q", e.DesiredState)
 	}
 	if !e.Status.Valid() {

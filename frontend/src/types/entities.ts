@@ -2,7 +2,12 @@ export type WorkerFramework = "springboot" | "nodejs" | "python" | "unknown";
 
 export type ProcessType = "endless" | "progressive";
 
-export type ExecutionState = "idle" | "running" | "stopping";
+// States a process can be observed in. "failed" is reported by a worker after a
+// process crashes; it is never a state an operator can ask for.
+export type ExecutionState = "idle" | "running" | "stopping" | "failed";
+
+// States an operator can command.
+export type DesiredState = Exclude<ExecutionState, "failed">;
 
 export type ExecutionStatus = "active" | "inactive";
 

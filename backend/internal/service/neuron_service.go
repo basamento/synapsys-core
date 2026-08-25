@@ -54,7 +54,7 @@ type NeuronHeartbeatRequest struct {
 }
 
 type UpdateDesiredStateRequest struct {
-	NeuronName   string                `json:"neuronName"`
+	ProcessID    int64                 `json:"-"`
 	DesiredState domain.ExecutionState `json:"desiredState"`
 }
 
@@ -87,7 +87,7 @@ func (s *NeuronService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequ
 
 	framework := req.Framework
 	if framework == "" {
-		framework = domain.WorkerFrameworkSpringBoot
+		framework = domain.WorkerFrameworkUnknown
 	}
 
 	worker := domain.Worker{
@@ -150,8 +150,8 @@ func (s *NeuronService) ListAllNeurons(ctx context.Context) (NeuronListResponse,
 
 func (s *NeuronService) UpdateDesiredState(ctx context.Context, req UpdateDesiredStateRequest) (bool, error) {
 	state := domain.ExecutionState(strings.ToLower(string(req.DesiredState)))
-	if !state.Valid() {
-		return false, fmt.Errorf("invalid desired state")
+	if !state.ValidAsDesired() {
+		return false, fmt.Errorf("invalid desired state: %q", req.DesiredState)
 	}
 	// Backward compatibility: if a client still sends IDLE to mean stop,
 	// interpret it as STOPPING (explicit stop command).
@@ -163,7 +163,7 @@ func (s *NeuronService) UpdateDesiredState(ctx context.Context, req UpdateDesire
 		id := time.Now().UnixNano()
 		runID = &id
 	}
-	return s.repo.UpdateDesiredCommand(ctx, req.NeuronName, state, runID)
+	return s.repo.UpdateDesiredCommand(ctx, req.ProcessID, state, runID)
 }
 
 func toNeuronDTO(view domain.ProcessView, now time.Time) NeuronDTO {

@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/utils";
+import type { ExecutionState } from "@/types/entities";
 import { Badge } from "../ui/badge";
 import { Card } from "../ui/card";
 import type { ProcessOverview } from "@/api/neurons";
@@ -29,7 +30,7 @@ export function ProcessCard({ worker }: WorkerCardProps) {
               Worker:{" "}
               <span className="font-mono text-foreground/90">{worker.workerName}</span>
               {" - Host: "}
-              <span className="font-mono text-foreground/90">{worker.workerName}</span>
+              <span className="font-mono text-foreground/90">{worker.host || "unknown"}</span>
             </div>
           </div>
 
@@ -86,7 +87,7 @@ function StatusBadge({ status }: { status: "active" | "inactive" }) {
   );
 }
 
-function StateBadge({ state }: { state: "idle" | "running" | "stopping" }) {
+function StateBadge({ state }: { state: ExecutionState }) {
   if (state === "idle") {
     return (
       <Badge className="bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap">
@@ -101,6 +102,13 @@ function StateBadge({ state }: { state: "idle" | "running" | "stopping" }) {
       </Badge>
     );
   }
+  if (state === "failed") {
+    return (
+      <Badge variant="destructive" className="whitespace-nowrap">
+        Failed
+      </Badge>
+    );
+  }
   return (
     <Badge className="bg-amber-600 text-white hover:bg-amber-700 whitespace-nowrap">
       Stopping
@@ -108,9 +116,10 @@ function StateBadge({ state }: { state: "idle" | "running" | "stopping" }) {
   );
 }
 
-function formatState(state: "idle" | "running" | "stopping") {
+function formatState(state: ExecutionState) {
   if (state === "idle") return "Idle";
   if (state === "running") return "Running";
+  if (state === "failed") return "Failed";
   return "Stopping";
 }
 

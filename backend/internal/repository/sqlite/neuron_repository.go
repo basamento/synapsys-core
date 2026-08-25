@@ -119,7 +119,7 @@ func (r *NeuronRepository) SyncHeartbeat(
 
 func (r *NeuronRepository) UpdateDesiredCommand(
 	ctx context.Context,
-	processName string,
+	processID int64,
 	state domain.ExecutionState,
 	runID *int64,
 ) (bool, error) {
@@ -137,7 +137,7 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 				WHEN ? = 'running' AND type = 'progressive' THEN ?
 				ELSE run_id
 			END
-		WHERE name = ?
+		WHERE id = ?
 		RETURNING id
 	`
 
@@ -146,13 +146,13 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 		runVal = *runID
 	}
 
-	var processID int64
-	err = tx.QueryRowContext(ctx, processQuery, string(state), runVal, processName).Scan(&processID)
+	var updatedID int64
+	err = tx.QueryRowContext(ctx, processQuery, string(state), runVal, processID).Scan(&updatedID)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("update command token for process %q: %w", processName, err)
+		return false, fmt.Errorf("update command token for process %d: %w", processID, err)
 	}
 
 	const executionQuery = `
@@ -164,7 +164,7 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 
 	var executionID int64
 	if err := tx.QueryRowContext(ctx, executionQuery, string(state), processID).Scan(&executionID); err != nil {
-		return false, fmt.Errorf("update desired state for process %q: %w", processName, err)
+		return false, fmt.Errorf("update desired state for process %d: %w", processID, err)
 	}
 
 	actionType := domain.ActionTypeStop
@@ -263,12 +263,13 @@ func upsertProcessObservation(
 ) error {
 	var previousAck int64
 	var existingExecutionID sql.NullInt64
+	// Scoped by worker: process names are only unique within a worker.
 	_ = tx.QueryRowContext(ctx, `
 		SELECT p.ack_token, e.id
 		FROM processes p
 		LEFT JOIN executions e ON e.process_id = p.id
-		WHERE p.name = ?
-	`, observation.Name).Scan(&previousAck, &existingExecutionID)
+		WHERE p.worker_id = ? AND p.name = ?
+	`, workerID, observation.Name).Scan(&previousAck, &existingExecutionID)
 
 	const processQuery = `
 		INSERT INTO processes (
@@ -282,8 +283,7 @@ func upsertProcessObservation(
 			run_id
 		)
 		VALUES (?, ?, ?, ?, ?, 0, ?, NULL)
-		ON CONFLICT(name) DO UPDATE SET
-			worker_id = excluded.worker_id,
+		ON CONFLICT(worker_id, name) DO UPDATE SET
 			type = excluded.type,
 			ping_timing = excluded.ping_timing,
 			ack_token = excluded.ack_token
@@ -348,9 +348,8 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 	}
 
 	placeholders, args := namesFilterArgs(workerID, names)
-	selectArgs := append([]any{}, args...)
 	query := fmt.Sprintf(`
-		SELECT e.id
+		SELECT e.id, p.id
 		FROM processes p
 		INNER JOIN executions e ON e.process_id = p.id
 		WHERE p.worker_id = ?
@@ -358,22 +357,24 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 		  AND (
 			(p.type = 'progressive' AND e.desired_state = 'running' AND p.ack_token >= p.desired_token)
 			OR
-			(e.desired_state = 'stopping' AND p.ack_token >= p.desired_token AND e.current_status = 'idle')
+			(e.desired_state = 'stopping' AND p.ack_token >= p.desired_token AND e.current_status IN ('idle', 'failed'))
 		  )
 	`, placeholders)
 
-	rows, err := tx.QueryContext(ctx, query, selectArgs...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
 	var executionIDs []int64
+	var processIDs []int64
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var executionID, processID int64
+		if err := rows.Scan(&executionID, &processID); err != nil {
 			rows.Close()
 			return err
 		}
-		executionIDs = append(executionIDs, id)
+		executionIDs = append(executionIDs, executionID)
+		processIDs = append(processIDs, processID)
 	}
 	if err := rows.Close(); err != nil {
 		return err
@@ -385,10 +386,17 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 		return nil
 	}
 
-	for _, executionID := range executionIDs {
-		if err := insertAction(ctx, tx, executionID, domain.ActionStatusDone, domain.ActionTypeAck); err != nil {
-			return err
-		}
+	// The worker's acknowledgement is already logged by upsertProcessObservation when
+	// its ack token advances. Completion resolves the pending start/stop action
+	// instead of logging a second, identical ack.
+	completedPlaceholders, completedArgs := int64FilterArgs(executionIDs)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE actions
+		SET status = ?
+		WHERE execution_id IN (%s)
+		  AND status = ?
+	`, completedPlaceholders), append([]any{string(domain.ActionStatusDone)}, append(completedArgs, string(domain.ActionStatusWaiting))...)...); err != nil {
+		return fmt.Errorf("resolve pending actions: %w", err)
 	}
 
 	executionPlaceholders, executionArgs := int64FilterArgs(executionIDs)
@@ -401,12 +409,13 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 		return err
 	}
 
-	processPlaceholders, processArgs := namesFilterArgs(workerID, names)
+	// Only the processes whose command just completed lose their run id. A sibling
+	// process with a start still in flight must keep the run id Core assigned it.
+	processPlaceholders, processArgs := int64FilterArgs(processIDs)
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
 		UPDATE processes
 		SET run_id = NULL
-		WHERE worker_id = ?
-		  AND name IN (%s)
+		WHERE id IN (%s)
 	`, processPlaceholders), processArgs...); err != nil {
 		return err
 	}

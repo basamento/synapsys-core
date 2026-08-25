@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"synapsys-core/internal/domain"
 	"synapsys-core/internal/service"
@@ -93,25 +94,27 @@ func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	// Processes are addressed by id: names are only unique within a worker.
+	processID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || processID <= 0 {
+		http.Error(w, "invalid process id", http.StatusBadRequest)
 		return
 	}
 
-	// If you're still sending JSON body, decode it here (but name is from path)
 	var dto service.UpdateDesiredStateRequest
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	dto.ProcessID = processID
 
 	updated, err := h.service.UpdateDesiredState(r.Context(), dto)
 	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if !updated {
-		http.Error(w, "neuron not found", http.StatusNotFound)
+		http.Error(w, "process not found", http.StatusNotFound)
 		return
 	}
 
@@ -125,14 +128,23 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 	}
 
 	neurons := make([]service.NeuronHeartbeat, 0, len(processes))
+	skipped := 0
 
 	for _, n := range processes {
 		// Normalize to lowercase to support Java enums RUNNING/IDLE/STOPPING etc.
 		cs := domain.ExecutionState(strings.ToLower(n.CurrentState))
 		nt := domain.ProcessType(strings.ToLower(n.Type))
 
+		// One unreadable process must never cost us visibility of the whole
+		// worker: skip it and keep the rest of the batch. This also keeps Core
+		// forward-compatible with clients reporting states it does not know yet.
 		if !cs.Valid() || !nt.Valid() {
-			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process current state or type")
+			skipped++
+			log.Printf(
+				"heartbeat: skipping process %q from worker %q (state=%q type=%q)",
+				n.Name, dto.WorkerName, n.CurrentState, n.Type,
+			)
+			continue
 		}
 
 		var ack int64 = 0
@@ -148,12 +160,15 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 		})
 	}
 
-	framework := domain.WorkerFramework(strings.ToLower(dto.Framework))
-	if framework == "" {
-		framework = domain.WorkerFrameworkSpringBoot
+	if len(neurons) == 0 && skipped > 0 {
+		return service.NeuronHeartbeatRequest{}, fmt.Errorf("no readable processes in heartbeat")
 	}
-	if !framework.Valid() {
-		return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid worker framework")
+
+	// A client that does not declare itself is unknown, not Java: defaulting to
+	// springboot would silently mislabel every future Node/Python worker.
+	framework := domain.WorkerFramework(strings.ToLower(dto.Framework))
+	if framework == "" || !framework.Valid() {
+		framework = domain.WorkerFrameworkUnknown
 	}
 
 	host := dto.Host

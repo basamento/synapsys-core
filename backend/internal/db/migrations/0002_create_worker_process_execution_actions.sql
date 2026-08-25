@@ -11,18 +11,20 @@ CREATE TABLE IF NOT EXISTS workers (
 CREATE TABLE IF NOT EXISTS processes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     worker_id INTEGER NOT NULL,
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     type TEXT NOT NULL,
     created_at DATETIME NOT NULL,
     ping_timing INTEGER NOT NULL,
     desired_token INTEGER NOT NULL DEFAULT 0,
     ack_token INTEGER NOT NULL DEFAULT 0,
     run_id INTEGER NULL,
-    FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+    FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
+    UNIQUE (worker_id, name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_processes_worker_id ON processes(worker_id);
 CREATE INDEX IF NOT EXISTS idx_processes_name ON processes(name);
+
 
 CREATE TABLE IF NOT EXISTS executions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
