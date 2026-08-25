@@ -73,7 +73,13 @@ func (r *NeuronRepository) pageInfo(
 	pagination domain.CollectionPagination,
 ) (domain.PageInfo, error) {
 	var totalItems int
-	if err := r.db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&totalItems); err != nil {
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
+	if table == "executions" {
+		// The no-run-id row is an internal process-state baseline created when a
+		// process is first discovered. Public execution history contains runs only.
+		countQuery += " WHERE run_id IS NOT NULL"
+	}
+	if err := r.db.QueryRowContext(ctx, countQuery).Scan(&totalItems); err != nil {
 		return domain.PageInfo{}, err
 	}
 
@@ -196,6 +202,7 @@ func (r *NeuronRepository) listProcessViews(ctx context.Context, page domain.Pag
 			w.last_touch,
 			e.id,
 			e.process_id,
+			e.run_id,
 			e.created_at,
 			e.modified_at,
 			e.current_status,
@@ -203,7 +210,13 @@ func (r *NeuronRepository) listProcessViews(ctx context.Context, page domain.Pag
 			e.status
 		FROM processes p
 		INNER JOIN workers w ON w.id = p.worker_id
-		INNER JOIN executions e ON e.process_id = p.id
+		INNER JOIN executions e ON e.id = (
+			SELECT e2.id
+			FROM executions e2
+			WHERE e2.process_id = p.id
+			ORDER BY e2.id DESC
+			LIMIT 1
+		)
 		ORDER BY p.created_at DESC, p.name ASC
 		LIMIT ? OFFSET ?
 	`
@@ -227,9 +240,10 @@ func (r *NeuronRepository) listProcessViews(ctx context.Context, page domain.Pag
 
 func (r *NeuronRepository) listExecutions(ctx context.Context, page domain.PageInfo) ([]domain.Execution, error) {
 	const query = `
-		SELECT id, process_id, created_at, modified_at, current_status, desired_state, status
+		SELECT id, process_id, run_id, created_at, modified_at, current_status, desired_state, status
 		FROM executions
-		ORDER BY modified_at DESC, id DESC
+		WHERE run_id IS NOT NULL
+		ORDER BY id DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -242,9 +256,11 @@ func (r *NeuronRepository) listExecutions(ctx context.Context, page domain.PageI
 	var executions []domain.Execution
 	for rows.Next() {
 		var execution domain.Execution
+		var runID sql.NullInt64
 		if err := rows.Scan(
 			&execution.ID,
 			&execution.ProcessID,
+			&runID,
 			&execution.CreatedAt,
 			&execution.ModifiedAt,
 			&execution.CurrentStatus,
@@ -252,6 +268,10 @@ func (r *NeuronRepository) listExecutions(ctx context.Context, page domain.PageI
 			&execution.Status,
 		); err != nil {
 			return nil, err
+		}
+		if runID.Valid {
+			v := runID.Int64
+			execution.RunID = &v
 		}
 		executions = append(executions, execution)
 	}

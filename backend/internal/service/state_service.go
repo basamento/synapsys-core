@@ -32,6 +32,7 @@ type ProcessDTO struct {
 type ExecutionDTO struct {
 	ID            int64     `json:"id"`
 	ProcessID     int64     `json:"processId"`
+	RunID         *int64    `json:"runId,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	ModifiedAt    time.Time `json:"modifiedAt"`
 	CurrentStatus string    `json:"currentStatus"`
@@ -134,6 +135,7 @@ func toExecutionDTOs(executions []domain.Execution) []ExecutionDTO {
 		dtos = append(dtos, ExecutionDTO{
 			ID:            execution.ID,
 			ProcessID:     execution.ProcessID,
+			RunID:         execution.RunID,
 			CreatedAt:     execution.CreatedAt,
 			ModifiedAt:    execution.ModifiedAt,
 			CurrentStatus: string(execution.CurrentStatus),

@@ -40,6 +40,7 @@ export type Process = {
 export type Execution = {
   id: number;
   processId: number;
+  runId?: number | null;
   createdAt: string;
   modifiedAt: string;
   currentStatus: ExecutionState;

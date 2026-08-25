@@ -36,3 +36,5 @@ go.work.sum
 # Local SQLite database (created at runtime, never shipped)
 backend/data/*.db
 backend/data/*.db-journal
+backend/**/data/*.db
+backend/**/data/*.db-journal

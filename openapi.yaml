@@ -1,0 +1,304 @@
+openapi: 3.1.0
+info:
+  title: Synapsys Core API
+  version: 1.0.0
+  description: |
+    The v1 control-plane contract. Workers open every connection; Core never
+    calls a worker. `heartbeatInterval` is always expressed in whole seconds.
+servers:
+  - url: http://localhost:8080
+    description: Local Core
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Check Core availability
+      responses:
+        '200':
+          description: Core is available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/v1/workers/heartbeat:
+    post:
+      operationId: heartbeatWorker
+      summary: Report worker state and receive process commands
+      description: |
+        Sends a complete snapshot of the worker's readable processes. A malformed
+        process is skipped without rejecting valid siblings. The request is rejected
+        only when it contains processes but none are readable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatRequest'
+      responses:
+        '200':
+          description: Worker state was recorded and current commands are returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/processes/{id}/desired-state:
+    put:
+      operationId: commandProcess
+      summary: Start or stop a process
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessCommandRequest'
+      responses:
+        '204':
+          description: Command was recorded for delivery on the next heartbeat.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Process not found.
+  /api/state:
+    get:
+      operationId: getState
+      summary: Read the paginated console state
+      parameters:
+        - $ref: '#/components/parameters/workersPage'
+        - $ref: '#/components/parameters/workersPageSize'
+        - $ref: '#/components/parameters/processesPage'
+        - $ref: '#/components/parameters/processesPageSize'
+        - $ref: '#/components/parameters/executionsPage'
+        - $ref: '#/components/parameters/executionsPageSize'
+        - $ref: '#/components/parameters/actionsPage'
+        - $ref: '#/components/parameters/actionsPageSize'
+      responses:
+        '200':
+          description: Current state and execution/action history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+components:
+  responses:
+    BadRequest:
+      description: Request validation failed.
+      content:
+        text/plain:
+          schema:
+            type: string
+  parameters:
+    workersPage:
+      name: workersPage
+      in: query
+      schema: {$ref: '#/components/schemas/PageNumber'}
+    workersPageSize:
+      name: workersPageSize
+      in: query
+      schema: {$ref: '#/components/schemas/PageSize'}
+    processesPage:
+      name: processesPage
+      in: query
+      schema: {$ref: '#/components/schemas/PageNumber'}
+    processesPageSize:
+      name: processesPageSize
+      in: query
+      schema: {$ref: '#/components/schemas/PageSize'}
+    executionsPage:
+      name: executionsPage
+      in: query
+      schema: {$ref: '#/components/schemas/PageNumber'}
+    executionsPageSize:
+      name: executionsPageSize
+      in: query
+      schema: {$ref: '#/components/schemas/PageSize'}
+    actionsPage:
+      name: actionsPage
+      in: query
+      schema: {$ref: '#/components/schemas/PageNumber'}
+    actionsPageSize:
+      name: actionsPageSize
+      in: query
+      schema: {$ref: '#/components/schemas/PageSize'}
+  schemas:
+    PageNumber:
+      type: integer
+      minimum: 1
+      default: 1
+    PageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 10
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    ProcessType:
+      type: string
+      enum: [endless, progressive]
+    ExecutionState:
+      type: string
+      enum: [idle, running, stopping, failed]
+    DesiredState:
+      type: string
+      enum: [idle, running, stopping]
+      description: In heartbeat responses, idle means that no command is outstanding.
+    HeartbeatProcess:
+      type: object
+      required: [name, type, currentState, ackToken]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          $ref: '#/components/schemas/ProcessType'
+        currentState:
+          $ref: '#/components/schemas/ExecutionState'
+        ackToken:
+          type: integer
+          format: int64
+          minimum: 0
+        runId:
+          type: [integer, 'null']
+          format: int64
+          description: The Core-assigned active run identifier, echoed unchanged.
+    HeartbeatRequest:
+      type: object
+      required: [workerName, framework, heartbeatInterval, processes]
+      properties:
+        workerName:
+          type: string
+          minLength: 1
+        framework:
+          type: string
+          minLength: 1
+        host:
+          type: string
+          description: Defaults to the connection's remote address when omitted.
+        heartbeatInterval:
+          type: integer
+          minimum: 1
+          description: Positive whole number of seconds between heartbeats.
+        processes:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeartbeatProcess'
+    ProcessCommand:
+      allOf:
+        - $ref: '#/components/schemas/HeartbeatProcess'
+        - type: object
+          required: [desiredState, desiredToken]
+          properties:
+            desiredState:
+              $ref: '#/components/schemas/DesiredState'
+            desiredToken:
+              type: integer
+              format: int64
+              minimum: 0
+    HeartbeatResponse:
+      type: object
+      required: [processes]
+      properties:
+        processes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessCommand'
+    ProcessCommandRequest:
+      type: object
+      required: [desiredState]
+      properties:
+        desiredState:
+          type: string
+          enum: [running, stopping]
+    Worker:
+      type: object
+      additionalProperties: true
+      required: [id, name, framework, host, firstConnection, lastConnection, lastTouch]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        framework: {type: string}
+        host: {type: string}
+        firstConnection: {type: string, format: date-time}
+        lastConnection: {type: string, format: date-time}
+        lastTouch: {type: string, format: date-time}
+    Process:
+      type: object
+      additionalProperties: true
+      required: [id, name, workerId, type, createdAt, pingTiming, desiredToken, ackToken]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        workerId: {type: integer, format: int64}
+        type: {$ref: '#/components/schemas/ProcessType'}
+        createdAt: {type: string, format: date-time}
+        pingTiming:
+          type: integer
+          description: Heartbeat interval in seconds.
+        desiredToken: {type: integer, format: int64}
+        ackToken: {type: integer, format: int64}
+        runId: {type: [integer, 'null'], format: int64}
+    Execution:
+      type: object
+      required: [id, processId, createdAt, modifiedAt, currentStatus, desiredState, status]
+      properties:
+        id: {type: integer, format: int64}
+        processId: {type: integer, format: int64}
+        runId: {type: [integer, 'null'], format: int64}
+        createdAt: {type: string, format: date-time}
+        modifiedAt: {type: string, format: date-time}
+        currentStatus: {$ref: '#/components/schemas/ExecutionState'}
+        desiredState: {$ref: '#/components/schemas/DesiredState'}
+        status: {type: string, enum: [active, inactive]}
+    Action:
+      type: object
+      additionalProperties: true
+    ProcessOverview:
+      type: object
+      additionalProperties: true
+    PageInfo:
+      type: object
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page: {type: integer}
+        pageSize: {type: integer}
+        totalItems: {type: integer}
+        totalPages: {type: integer}
+    StateResponse:
+      type: object
+      required: [workers, processes, executions, actions, processOverviews, pagination]
+      properties:
+        workers:
+          type: array
+          items: {$ref: '#/components/schemas/Worker'}
+        processes:
+          type: array
+          items: {$ref: '#/components/schemas/Process'}
+        executions:
+          type: array
+          items: {$ref: '#/components/schemas/Execution'}
+        actions:
+          type: array
+          items: {$ref: '#/components/schemas/Action'}
+        processOverviews:
+          type: array
+          items: {$ref: '#/components/schemas/ProcessOverview'}
+        pagination:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PageInfo'

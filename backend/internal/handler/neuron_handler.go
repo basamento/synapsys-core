@@ -138,7 +138,7 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 		// One unreadable process must never cost us visibility of the whole
 		// worker: skip it and keep the rest of the batch. This also keeps Core
 		// forward-compatible with clients reporting states it does not know yet.
-		if !cs.Valid() || !nt.Valid() {
+		if strings.TrimSpace(n.Name) == "" || !cs.Valid() || !nt.Valid() {
 			skipped++
 			log.Printf(
 				"heartbeat: skipping process %q from worker %q (state=%q type=%q)",
@@ -182,6 +182,9 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 	heartbeatInterval := dto.HeartbeatInterval
 	if heartbeatInterval == 0 {
 		heartbeatInterval = dto.PingTiming
+	}
+	if heartbeatInterval <= 0 {
+		return service.NeuronHeartbeatRequest{}, fmt.Errorf("heartbeatInterval must be a positive number of seconds")
 	}
 
 	return service.NeuronHeartbeatRequest{

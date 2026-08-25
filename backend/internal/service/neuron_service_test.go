@@ -88,8 +88,8 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 	if got := acked.Neurons[0].DesiredState; got != domain.ExecutionStateIdle {
 		t.Fatalf("acked desired state = %q, want idle", got)
 	}
-	if acked.Neurons[0].RunId != nil {
-		t.Fatal("expected run id to be cleared after ack")
+	if acked.Neurons[0].RunId == nil {
+		t.Fatal("expected run id to remain while the execution is running")
 	}
 
 	list, err := service.ListAllNeurons(t.Context())
@@ -119,7 +119,7 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 		t.Fatalf("state processes = %d, want 1", len(state.Processes))
 	}
 	if len(state.Executions) != 1 {
-		t.Fatalf("state executions = %d, want 1", len(state.Executions))
+		t.Fatalf("state executions = %d, want one run", len(state.Executions))
 	}
 	if len(state.Actions) == 0 {
 		t.Fatal("expected state actions to include command history")
@@ -184,6 +184,44 @@ func TestSameProcessNameOnDifferentWorkers(t *testing.T) {
 	}
 	if !owners["worker-a"] || !owners["worker-b"] {
 		t.Fatalf("process owners = %v, want both worker-a and worker-b", owners)
+	}
+}
+
+func TestWorkerRegistersWithoutProcesses(t *testing.T) {
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer database.Close()
+	if err := db.RunMigrations(database); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+
+	repo := sqlite.NewNeuronRepository(database)
+	service := NewNeuronsService(repo)
+	if _, err := service.SyncNeurons(t.Context(), NeuronHeartbeatRequest{
+		WorkerName: "empty-worker",
+		Framework:  domain.WorkerFrameworkUnknown,
+		Host:       "localhost",
+		PingTiming: 5,
+	}); err != nil {
+		t.Fatalf("sync empty worker: %v", err)
+	}
+
+	state, err := NewStateService(repo).GetState(t.Context(), domain.StatePagination{
+		Workers:    domain.CollectionPagination{Page: 1, PageSize: 10},
+		Processes:  domain.CollectionPagination{Page: 1, PageSize: 10},
+		Executions: domain.CollectionPagination{Page: 1, PageSize: 10},
+		Actions:    domain.CollectionPagination{Page: 1, PageSize: 10},
+	})
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if len(state.Workers) != 1 || state.Workers[0].Name != "empty-worker" {
+		t.Fatalf("workers = %#v, want empty-worker", state.Workers)
+	}
+	if len(state.Processes) != 0 {
+		t.Fatalf("processes = %#v, want none", state.Processes)
 	}
 }
 
@@ -276,8 +314,8 @@ func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
 		t.Fatalf("acked sync: %v", err)
 	}
 
-	if got := commandByName(t, acked, "alpha").RunId; got != nil {
-		t.Fatalf("alpha run id = %d, want nil after ack", *got)
+	if got := commandByName(t, acked, "alpha").RunId; got == nil {
+		t.Fatal("alpha lost its run id while its execution is active")
 	}
 
 	beta := commandByName(t, acked, "beta")
@@ -289,6 +327,74 @@ func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
 	}
 	if beta.DesiredState != domain.ExecutionStateRunning {
 		t.Fatalf("beta desired state = %q, want running", beta.DesiredState)
+	}
+}
+
+func TestProgressiveRunsAreRetainedAsExecutionHistory(t *testing.T) {
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer database.Close()
+	if err := db.RunMigrations(database); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+
+	repo := sqlite.NewNeuronRepository(database)
+	service := NewNeuronsService(repo)
+	stateService := NewStateService(repo)
+	heartbeat := func(state domain.ExecutionState, ack int64) NeuronHeartbeatRequest {
+		return NeuronHeartbeatRequest{
+			WorkerName: "worker-a",
+			Framework:  domain.WorkerFrameworkSpringBoot,
+			Host:       "localhost",
+			PingTiming: 5,
+			Neurons: []NeuronHeartbeat{{
+				Name: "import", Type: domain.ProcessTypeProgressive,
+				CurrentState: state, AckToken: ack,
+			}},
+		}
+	}
+
+	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 0)); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	registered, err := service.ListAllNeurons(t.Context())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	processID := registered.Neurons[0].ID
+
+	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{ProcessID: processID, DesiredState: domain.ExecutionStateRunning}); err != nil {
+		t.Fatalf("first start: %v", err)
+	}
+	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateRunning, 1)); err != nil {
+		t.Fatalf("ack first start: %v", err)
+	}
+	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 1)); err != nil {
+		t.Fatalf("finish first run: %v", err)
+	}
+	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{ProcessID: processID, DesiredState: domain.ExecutionStateRunning}); err != nil {
+		t.Fatalf("second start: %v", err)
+	}
+
+	state, err := stateService.GetState(t.Context(), domain.StatePagination{
+		Workers:    domain.CollectionPagination{Page: 1, PageSize: 10},
+		Processes:  domain.CollectionPagination{Page: 1, PageSize: 10},
+		Executions: domain.CollectionPagination{Page: 1, PageSize: 10},
+		Actions:    domain.CollectionPagination{Page: 1, PageSize: 20},
+	})
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if got := state.Pagination.Executions.TotalItems; got != 2 {
+		t.Fatalf("execution history size = %d, want two runs", got)
+	}
+	if len(state.Executions) != 2 || state.Executions[0].Status != string(domain.ExecutionStatusActive) {
+		t.Fatalf("latest execution = %#v, want active second run", state.Executions)
+	}
+	if state.Executions[0].RunID == nil || state.Executions[1].RunID == nil || *state.Executions[0].RunID == *state.Executions[1].RunID {
+		t.Fatalf("run ids = %#v, want two distinct ids", state.Executions)
 	}
 }
 

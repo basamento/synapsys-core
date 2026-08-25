@@ -12,7 +12,7 @@ func TestToSyncServiceRequestAcceptsWorkerHeartbeatBody(t *testing.T) {
 	ackToken := int64(12)
 	dto := neuronHeartbeatRequestDTO{
 		WorkerName:        "my-worker-app",
-		HeartbeatInterval: 5000,
+		HeartbeatInterval: 5,
 		Processes: []neuronInfoDTO{
 			{
 				Name:         "endless process 1",
@@ -40,8 +40,8 @@ func TestToSyncServiceRequestAcceptsWorkerHeartbeatBody(t *testing.T) {
 	if req.Host != "127.0.0.1" {
 		t.Fatalf("host = %q, want 127.0.0.1", req.Host)
 	}
-	if req.PingTiming != 5000 {
-		t.Fatalf("ping timing = %d, want 5000", req.PingTiming)
+	if req.PingTiming != 5 {
+		t.Fatalf("ping timing = %d, want 5", req.PingTiming)
 	}
 	if len(req.Neurons) != 1 {
 		t.Fatalf("processes = %d, want 1", len(req.Neurons))
@@ -97,7 +97,7 @@ func TestHeartbeatProcessesResponseUsesProcessesField(t *testing.T) {
 func TestToSyncServiceRequestSkipsUnreadableProcesses(t *testing.T) {
 	dto := neuronHeartbeatRequestDTO{
 		WorkerName:        "my-worker-app",
-		HeartbeatInterval: 5000,
+		HeartbeatInterval: 5,
 		Processes: []neuronInfoDTO{
 			{Name: "bad", Type: "endless", CurrentState: "teleporting"},
 			{Name: "good", Type: "endless", CurrentState: "running"},
@@ -122,7 +122,7 @@ func TestToSyncServiceRequestAcceptsFailedState(t *testing.T) {
 		WorkerName:        "my-worker-app",
 		Framework:         "nodejs",
 		Host:              "worker-host",
-		HeartbeatInterval: 5000,
+		HeartbeatInterval: 5,
 		Processes: []neuronInfoDTO{
 			{Name: "crashed", Type: "progressive", CurrentState: "FAILED"},
 		},
@@ -156,5 +156,37 @@ func TestToSyncServiceRequestFailsWhenNothingReadable(t *testing.T) {
 
 	if _, err := toSyncServiceRequest(dto, "127.0.0.1:8080"); err == nil {
 		t.Fatal("expected an error when no process in the batch is readable")
+	}
+}
+
+func TestToSyncServiceRequestSkipsProcessWithoutName(t *testing.T) {
+	dto := neuronHeartbeatRequestDTO{
+		WorkerName:        "my-worker-app",
+		HeartbeatInterval: 5,
+		Processes: []neuronInfoDTO{
+			{Name: "", Type: "endless", CurrentState: "running"},
+			{Name: "good", Type: "endless", CurrentState: "idle"},
+		},
+	}
+
+	req, err := toSyncServiceRequest(dto, "127.0.0.1:8080")
+	if err != nil {
+		t.Fatalf("toSyncServiceRequest returned error: %v", err)
+	}
+	if len(req.Neurons) != 1 || req.Neurons[0].Name != "good" {
+		t.Fatalf("processes = %#v, want only good", req.Neurons)
+	}
+}
+
+func TestToSyncServiceRequestRequiresPositiveHeartbeatInterval(t *testing.T) {
+	dto := neuronHeartbeatRequestDTO{
+		WorkerName: "my-worker-app",
+		Processes: []neuronInfoDTO{
+			{Name: "good", Type: "endless", CurrentState: "idle"},
+		},
+	}
+
+	if _, err := toSyncServiceRequest(dto, "127.0.0.1:8080"); err == nil {
+		t.Fatal("expected heartbeatInterval validation error")
 	}
 }

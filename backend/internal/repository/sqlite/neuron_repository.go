@@ -37,6 +37,7 @@ func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.ProcessView, e
 			w.last_touch,
 			e.id,
 			e.process_id,
+			e.run_id,
 			e.created_at,
 			e.modified_at,
 			e.current_status,
@@ -44,7 +45,13 @@ func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.ProcessView, e
 			e.status
 		FROM processes p
 		INNER JOIN workers w ON w.id = p.worker_id
-		INNER JOIN executions e ON e.process_id = p.id
+		INNER JOIN executions e ON e.id = (
+			SELECT e2.id
+			FROM executions e2
+			WHERE e2.process_id = p.id
+			ORDER BY e2.id DESC
+			LIMIT 1
+		)
 		ORDER BY w.last_touch DESC, p.name ASC
 	`
 
@@ -73,9 +80,6 @@ func (r *NeuronRepository) SyncHeartbeat(
 	worker domain.Worker,
 	observations []domain.ProcessObservation,
 ) ([]domain.ProcessCommand, error) {
-	if len(observations) == 0 {
-		return nil, nil
-	}
 	if err := worker.Validate(); err != nil {
 		return nil, err
 	}
@@ -90,6 +94,12 @@ func (r *NeuronRepository) SyncHeartbeat(
 	if err != nil {
 		return nil, err
 	}
+	if len(observations) == 0 {
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
 
 	names := make([]string, 0, len(observations))
 	for _, observation := range observations {
@@ -103,6 +113,9 @@ func (r *NeuronRepository) SyncHeartbeat(
 	}
 
 	if err := cleanupAckedCommands(ctx, tx, workerID, names, worker.LastTouch); err != nil {
+		return nil, err
+	}
+	if err := completeFinishedExecutions(ctx, tx, workerID, names, worker.LastTouch); err != nil {
 		return nil, err
 	}
 
@@ -134,7 +147,7 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 		SET
 			desired_token = desired_token + 1,
 			run_id = CASE
-				WHEN ? = 'running' AND type = 'progressive' THEN ?
+				WHEN ? = 'running' THEN ?
 				ELSE run_id
 			END
 		WHERE id = ?
@@ -155,16 +168,53 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 		return false, fmt.Errorf("update command token for process %d: %w", processID, err)
 	}
 
-	const executionQuery = `
-		UPDATE executions
-		SET desired_state = ?, modified_at = CURRENT_TIMESTAMP
-		WHERE process_id = ?
-		RETURNING id
-	`
-
 	var executionID int64
-	if err := tx.QueryRowContext(ctx, executionQuery, string(state), processID).Scan(&executionID); err != nil {
-		return false, fmt.Errorf("update desired state for process %d: %w", processID, err)
+	if state == domain.ExecutionStateRunning {
+		// A start always opens a new immutable run record. Any previously active
+		// execution is closed defensively before the partial unique index is hit.
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE executions
+			SET status = 'inactive', modified_at = CURRENT_TIMESTAMP
+			WHERE process_id = ? AND status = 'active'
+		`, processID); err != nil {
+			return false, fmt.Errorf("close previous execution for process %d: %w", processID, err)
+		}
+
+		var currentState domain.ExecutionState
+		if err := tx.QueryRowContext(ctx, `
+			SELECT current_status
+			FROM executions
+			WHERE process_id = ?
+			ORDER BY id DESC
+			LIMIT 1
+		`, processID).Scan(&currentState); err != nil {
+			return false, fmt.Errorf("read current state for process %d: %w", processID, err)
+		}
+
+		if err := tx.QueryRowContext(ctx, `
+			INSERT INTO executions (
+				process_id, run_id, created_at, modified_at,
+				current_status, desired_state, status
+			)
+			VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, 'running', 'active')
+			RETURNING id
+		`, processID, runVal, string(currentState)).Scan(&executionID); err != nil {
+			return false, fmt.Errorf("create execution for process %d: %w", processID, err)
+		}
+	} else {
+		if err := tx.QueryRowContext(ctx, `
+			UPDATE executions
+			SET desired_state = ?, modified_at = CURRENT_TIMESTAMP
+			WHERE id = (
+				SELECT id FROM executions
+				WHERE process_id = ?
+				ORDER BY id DESC
+				LIMIT 1
+			)
+			RETURNING id
+		`, string(state), processID).Scan(&executionID); err != nil {
+			return false, fmt.Errorf("update desired state for process %d: %w", processID, err)
+		}
 	}
 
 	actionType := domain.ActionTypeStop
@@ -183,7 +233,8 @@ func (r *NeuronRepository) UpdateDesiredCommand(
 
 func scanProcessView(rows *sql.Rows) (domain.ProcessView, error) {
 	var view domain.ProcessView
-	var runID sql.NullInt64
+	var processRunID sql.NullInt64
+	var executionRunID sql.NullInt64
 	if err := rows.Scan(
 		&view.Process.ID,
 		&view.Process.Name,
@@ -193,7 +244,7 @@ func scanProcessView(rows *sql.Rows) (domain.ProcessView, error) {
 		&view.Process.PingTiming,
 		&view.Process.DesiredToken,
 		&view.Process.AckToken,
-		&runID,
+		&processRunID,
 		&view.Worker.ID,
 		&view.Worker.Name,
 		&view.Worker.FirstConnection,
@@ -203,6 +254,7 @@ func scanProcessView(rows *sql.Rows) (domain.ProcessView, error) {
 		&view.Worker.LastTouch,
 		&view.Execution.ID,
 		&view.Execution.ProcessID,
+		&executionRunID,
 		&view.Execution.CreatedAt,
 		&view.Execution.ModifiedAt,
 		&view.Execution.CurrentStatus,
@@ -211,9 +263,13 @@ func scanProcessView(rows *sql.Rows) (domain.ProcessView, error) {
 	); err != nil {
 		return domain.ProcessView{}, err
 	}
-	if runID.Valid {
-		v := runID.Int64
+	if processRunID.Valid {
+		v := processRunID.Int64
 		view.Process.RunID = &v
+	}
+	if executionRunID.Valid {
+		v := executionRunID.Int64
+		view.Execution.RunID = &v
 	}
 	return view, nil
 }
@@ -267,7 +323,12 @@ func upsertProcessObservation(
 	_ = tx.QueryRowContext(ctx, `
 		SELECT p.ack_token, e.id
 		FROM processes p
-		LEFT JOIN executions e ON e.process_id = p.id
+		LEFT JOIN executions e ON e.id = (
+			SELECT e2.id FROM executions e2
+			WHERE e2.process_id = p.id
+			ORDER BY e2.id DESC
+			LIMIT 1
+		)
 		WHERE p.worker_id = ? AND p.name = ?
 	`, workerID, observation.Name).Scan(&previousAck, &existingExecutionID)
 
@@ -304,33 +365,40 @@ func upsertProcessObservation(
 		return fmt.Errorf("upsert process %q: %w", observation.Name, err)
 	}
 
-	const executionQuery = `
-		INSERT INTO executions (
-			process_id,
-			created_at,
-			modified_at,
-			current_status,
-			desired_state,
-			status
-		)
-		VALUES (?, ?, ?, ?, 'idle', 'active')
-		ON CONFLICT(process_id) DO UPDATE SET
-			current_status = excluded.current_status,
-			status = 'active',
-			modified_at = excluded.modified_at
-		RETURNING id
-	`
-
 	var executionID int64
-	if err := tx.QueryRowContext(
-		ctx,
-		executionQuery,
-		processID,
-		now,
-		now,
-		string(observation.CurrentStatus),
-	).Scan(&executionID); err != nil {
-		return fmt.Errorf("upsert execution for process %q: %w", observation.Name, err)
+	if !existingExecutionID.Valid {
+		status := domain.ExecutionStatusInactive
+		if observation.CurrentStatus == domain.ExecutionStateRunning ||
+			observation.CurrentStatus == domain.ExecutionStateStopping {
+			status = domain.ExecutionStatusActive
+		}
+		if err := tx.QueryRowContext(ctx, `
+			INSERT INTO executions (
+				process_id, run_id, created_at, modified_at,
+				current_status, desired_state, status
+			)
+			VALUES (?, NULL, ?, ?, ?, 'idle', ?)
+			RETURNING id
+		`, processID, now, now, string(observation.CurrentStatus), string(status)).Scan(&executionID); err != nil {
+			return fmt.Errorf("create initial execution for process %q: %w", observation.Name, err)
+		}
+	} else {
+		executionID = existingExecutionID.Int64
+		if err := tx.QueryRowContext(ctx, `
+			UPDATE executions
+			SET
+				current_status = ?,
+				modified_at = ?,
+				status = CASE
+					WHEN ? IN ('running', 'stopping') THEN 'active'
+					WHEN ? IN ('idle', 'failed') AND desired_state = 'idle' THEN 'inactive'
+					ELSE status
+				END
+			WHERE id = ?
+			RETURNING id
+		`, string(observation.CurrentStatus), now, string(observation.CurrentStatus), string(observation.CurrentStatus), executionID).Scan(&executionID); err != nil {
+			return fmt.Errorf("update execution for process %q: %w", observation.Name, err)
+		}
 	}
 
 	if !existingExecutionID.Valid {
@@ -349,13 +417,18 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 
 	placeholders, args := namesFilterArgs(workerID, names)
 	query := fmt.Sprintf(`
-		SELECT e.id, p.id
+		SELECT e.id
 		FROM processes p
-		INNER JOIN executions e ON e.process_id = p.id
+		INNER JOIN executions e ON e.id = (
+			SELECT e2.id FROM executions e2
+			WHERE e2.process_id = p.id
+			ORDER BY e2.id DESC
+			LIMIT 1
+		)
 		WHERE p.worker_id = ?
 		  AND p.name IN (%s)
 		  AND (
-			(p.type = 'progressive' AND e.desired_state = 'running' AND p.ack_token >= p.desired_token)
+			(e.desired_state = 'running' AND p.ack_token >= p.desired_token)
 			OR
 			(e.desired_state = 'stopping' AND p.ack_token >= p.desired_token AND e.current_status IN ('idle', 'failed'))
 		  )
@@ -366,15 +439,13 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 		return err
 	}
 	var executionIDs []int64
-	var processIDs []int64
 	for rows.Next() {
-		var executionID, processID int64
-		if err := rows.Scan(&executionID, &processID); err != nil {
+		var executionID int64
+		if err := rows.Scan(&executionID); err != nil {
 			rows.Close()
 			return err
 		}
 		executionIDs = append(executionIDs, executionID)
-		processIDs = append(processIDs, processID)
 	}
 	if err := rows.Close(); err != nil {
 		return err
@@ -409,8 +480,64 @@ func cleanupAckedCommands(ctx context.Context, tx *sql.Tx, workerID int64, names
 		return err
 	}
 
-	// Only the processes whose command just completed lose their run id. A sibling
-	// process with a start still in flight must keep the run id Core assigned it.
+	return nil
+}
+
+func completeFinishedExecutions(ctx context.Context, tx *sql.Tx, workerID int64, names []string, now any) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	placeholders, args := namesFilterArgs(workerID, names)
+	rows, err := tx.QueryContext(ctx, fmt.Sprintf(`
+		SELECT e.id, p.id
+		FROM processes p
+		INNER JOIN executions e ON e.id = (
+			SELECT e2.id FROM executions e2
+			WHERE e2.process_id = p.id
+			ORDER BY e2.id DESC
+			LIMIT 1
+		)
+		WHERE p.worker_id = ?
+		  AND p.name IN (%s)
+		  AND e.status = 'active'
+		  AND e.desired_state = 'idle'
+		  AND e.current_status IN ('idle', 'failed')
+	`, placeholders), args...)
+	if err != nil {
+		return err
+	}
+	var executionIDs []int64
+	var processIDs []int64
+	for rows.Next() {
+		var executionID, processID int64
+		if err := rows.Scan(&executionID, &processID); err != nil {
+			rows.Close()
+			return err
+		}
+		executionIDs = append(executionIDs, executionID)
+		processIDs = append(processIDs, processID)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(executionIDs) == 0 {
+		return nil
+	}
+
+	executionPlaceholders, executionArgs := int64FilterArgs(executionIDs)
+	executionArgs = append([]any{now}, executionArgs...)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE executions
+		SET status = 'inactive', modified_at = ?
+		WHERE id IN (%s)
+	`, executionPlaceholders), executionArgs...); err != nil {
+		return err
+	}
+
 	processPlaceholders, processArgs := int64FilterArgs(processIDs)
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
 		UPDATE processes
@@ -437,7 +564,12 @@ func listCommands(ctx context.Context, tx *sql.Tx, workerID int64, names []strin
 			p.desired_token,
 			p.run_id
 		FROM processes p
-		INNER JOIN executions e ON e.process_id = p.id
+		INNER JOIN executions e ON e.id = (
+			SELECT e2.id FROM executions e2
+			WHERE e2.process_id = p.id
+			ORDER BY e2.id DESC
+			LIMIT 1
+		)
 		WHERE p.worker_id = ?
 		  AND p.name IN (%s)
 		ORDER BY p.name ASC

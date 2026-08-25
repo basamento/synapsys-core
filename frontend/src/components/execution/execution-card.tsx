@@ -20,6 +20,9 @@ export function ExecutionCard({ execution }: ExecutionCardProps) {
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               Process: <span className="font-mono text-foreground/90">#{execution.processId}</span>
+              {execution.runId != null && (
+                <> · Run: <span className="font-mono text-foreground/90">{execution.runId}</span></>
+              )}
             </div>
           </div>
 

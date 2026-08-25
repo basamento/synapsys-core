@@ -170,6 +170,7 @@ func (p Process) Validate() error {
 type Execution struct {
 	ID            int64
 	ProcessID     int64
+	RunID         *int64
 	CreatedAt     time.Time
 	ModifiedAt    time.Time
 	CurrentStatus ExecutionState

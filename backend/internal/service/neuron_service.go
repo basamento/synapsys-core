@@ -169,7 +169,7 @@ func (s *NeuronService) UpdateDesiredState(ctx context.Context, req UpdateDesire
 func toNeuronDTO(view domain.ProcessView, now time.Time) NeuronDTO {
 	status := domain.ExecutionStatusActive
 	duration := now.Sub(view.Worker.LastTouch)
-	if duration > time.Duration(view.Process.PingTiming)*time.Millisecond {
+	if duration > time.Duration(view.Process.PingTiming)*time.Second {
 		status = domain.ExecutionStatusInactive
 	}
 

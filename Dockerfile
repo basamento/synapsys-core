@@ -12,6 +12,9 @@ RUN npm run build
 # ---- 2. Build Go backend (embed frontend) ----
 FROM golang:1.25-alpine AS backend-builder
 
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 WORKDIR /app
 
 COPY backend/go.mod backend/go.sum ./
@@ -24,7 +27,7 @@ RUN mkdir -p web/dist
 COPY --from=frontend-builder /frontend/dist/ ./web/dist/
 
 # Build backend binary (correct entrypoint)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o synapsys-core ./cmd/api
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o synapsys-core ./cmd/api
 
 # ---- 3. Final runtime image ----
 FROM alpine:3.20
