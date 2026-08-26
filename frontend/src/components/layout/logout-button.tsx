@@ -29,7 +29,7 @@ export function LogoutButton({ mobile = false }: { mobile?: boolean }) {
       type="button"
       variant="ghost"
       onClick={() => void signOut()}
-      className="w-full justify-center text-body hover:bg-sunken wide:justify-start"
+      className="h-auto w-full justify-center rounded-sm px-3 py-2.25 type-body-lg font-medium text-body hover:bg-sunken wide:justify-start"
     >
       <LogOut aria-hidden className="size-4 text-faint" />
       <span className="hidden wide:inline">Sign out</span>

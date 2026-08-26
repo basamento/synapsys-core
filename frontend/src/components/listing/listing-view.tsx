@@ -75,7 +75,7 @@ export function ListingView<T>({
   );
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
       <PageHeader
         title={title}
         meta={meta}
@@ -116,14 +116,16 @@ export function ListingView<T>({
           />
         </>
       ) : (
-        <Card className="overflow-hidden">
-          <DataTable
-            columns={visibleColumns}
-            rows={rows}
-            getRowId={definition.getRowId}
-            sort={listingQuery}
-            onSortChange={(sort) => updateQuery(collection, sort)}
-          />
+        <Card className="min-h-0 flex-1 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <DataTable
+              columns={visibleColumns}
+              rows={rows}
+              getRowId={definition.getRowId}
+              sort={listingQuery}
+              onSortChange={(sort) => updateQuery(collection, sort)}
+            />
+          </div>
           <ListingPagination
             pageInfo={pageInfo}
             onPageChange={(page) => updateQuery(collection, { page })}

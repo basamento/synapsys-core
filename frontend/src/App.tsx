@@ -23,9 +23,9 @@ function Shell() {
     <div className="flex h-svh flex-col overflow-hidden bg-canvas">
       <TopBar />
 
-      <div className="flex min-h-0 flex-1 gap-(--shell-gap) overflow-y-auto px-4 py-4 sm:px-(--shell-pad-x) sm:py-(--shell-pad-y)">
+      <div className="flex min-h-0 flex-1 gap-(--shell-gap) overflow-hidden px-4 py-4 sm:px-(--shell-pad-x) sm:py-(--shell-pad-y)">
         {!isMobile && <SideBar />}
-        <main className="min-w-0 grow pb-1.5">
+        <main className="flex min-h-0 min-w-0 grow flex-col overflow-y-auto pb-1.5">
           <Outlet />
         </main>
       </div>

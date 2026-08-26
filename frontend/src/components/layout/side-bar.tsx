@@ -68,7 +68,7 @@ export function SideBar() {
         <CommandQueueCard />
       </div>
 
-      <div className="mt-auto flex flex-col gap-2.5 pt-4">
+      <div className="mt-auto flex flex-col gap-0.75 pt-4">
         <NavLink
           to="/settings"
           title="Settings"

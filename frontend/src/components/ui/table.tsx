@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div data-slot="table-container" className="w-full overflow-x-auto">
+    <div data-slot="table-container" className="w-full">
       <table
         data-slot="table"
         className={cn("w-full table-fixed border-collapse text-left", className)}
@@ -26,7 +26,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("border-b border-edge bg-subtle", className)}
+      className={cn("sticky top-0 z-10 border-b border-edge bg-subtle", className)}
       {...props}
     />
   );
