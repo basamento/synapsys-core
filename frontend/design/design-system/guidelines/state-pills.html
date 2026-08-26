@@ -1,0 +1,36 @@
+<!-- @dsCard group="Colors" viewport="700x160" subtitle="Tinted fill plus tinted text, both themes" name="State pills" -->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+  <title>State pills</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { padding: 18px 20px; font: var(--text-body-md); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .sw { display: flex; flex-direction: column; gap: 6px; }
+    .chip { height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+    .val { font: var(--text-mono-sm); color: var(--text-muted); }
+    .pane { padding: 16px; border-radius: var(--radius-lg); background: var(--canvas); border: 1px solid var(--border); }
+    .pill { font: var(--text-caption); font-weight: 600; padding: 3px 11px; border-radius: var(--radius-pill); }
+  </style></head>
+<body>
+<div class="col">
+  <div class="pane"><div class="row">
+    <span class="pill" style="background: var(--state-running-bg); color: var(--state-running-fg);">running</span>
+    <span class="pill" style="background: var(--state-idle-bg); color: var(--state-idle-fg);">idle</span>
+    <span class="pill" style="background: var(--state-stopping-bg); color: var(--state-stopping-fg);">stopping</span>
+    <span class="pill" style="background: var(--state-failed-bg); color: var(--state-failed-fg);">failed</span>
+    <span class="pill" style="background: transparent; border: 1px solid var(--border-brand); color: var(--brand-soft-text);">Endless</span>
+  </div></div>
+  <div class="pane dark"><div class="row">
+    <span class="pill" style="background: var(--state-running-bg); color: var(--state-running-fg);">running</span>
+    <span class="pill" style="background: var(--state-idle-bg); color: var(--state-idle-fg);">idle</span>
+    <span class="pill" style="background: var(--state-stopping-bg); color: var(--state-stopping-fg);">stopping</span>
+    <span class="pill" style="background: var(--state-failed-bg); color: var(--state-failed-fg);">failed</span>
+    <span class="pill" style="background: transparent; border: 1px solid var(--border-brand); color: var(--brand-soft-text);">Endless</span>
+  </div></div>
+</div>
+</body>
+</html>

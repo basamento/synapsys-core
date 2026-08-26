@@ -1,0 +1,49 @@
+<!-- @dsCard group="Components" viewport="700x460" subtitle="Process, worker, execution and action cards" name="Entity cards" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Entity cards</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { padding: 18px 20px; }
+    .grp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .stack { display: flex; flex-direction: column; gap: 14px; }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="../../card-boot.js"></script>
+  <script src="../../_ds_bundle.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { ProcessCard, WorkerCard, ExecutionCard, ActionCard } = window.dsResolve(["ProcessCard", "WorkerCard", "ExecutionCard", "ActionCard"]);
+    const process = { id: 10, name: "endless process 10", workerName: "springboot-user-1", host: "DESKTOP-2NJS2Q4",
+      type: "endless", framework: "springboot", currentState: "running", desiredState: "running",
+      desiredToken: 4, ackToken: 4, lastTouch: "18:10:40" };
+    const worker = { id: 1, name: "springboot-user-1", host: "DESKTOP-2NJS2Q4", framework: "springboot",
+      firstConnection: "18:08:55", lastConnection: "18:10:10", lastTouch: "18:10:10", processCount: 200 };
+    const execution = { id: 200, processId: 200, runId: 12, status: "active", currentStatus: "idle",
+      desiredState: "idle", createdAt: "18:08:55", modifiedAt: "18:11:10" };
+    const action = { id: 200, executionId: 200, type: "create", status: "done", createdAt: "18:08:55" };
+
+    function Demo() {
+      return (
+        <div className="stack">
+          <ProcessCard process={process} />
+          <WorkerCard worker={worker} />
+          <ExecutionCard execution={execution} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
+            <ActionCard action={action} compact />
+            <ActionCard action={{ ...action, id: 199, type: "heartbeat", status: "waiting" }} dense />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Demo />);
+  </script>
+</body>
+</html>

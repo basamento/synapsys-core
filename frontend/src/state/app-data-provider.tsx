@@ -1,104 +1,138 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   fetchAppDataSnapshot,
   type AppDataCollection,
-  type AppDataPagination,
+  type AppDataQuery,
   type AppDataSnapshot,
-  type PageInfo,
 } from "@/api/app-data";
 import {
   AppDataContext,
-  emptyAppDataPagination,
+  POLL_INTERVAL_MS,
+  defaultAppDataQuery,
   emptyAppDataSnapshot,
   type AppDataStatus,
-  type PaginationUpdate,
+  type QueryUpdate,
 } from "./app-data-context";
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<AppDataSnapshot>(emptyAppDataSnapshot);
-  const [pagination, setPagination] = useState<AppDataPagination>(emptyAppDataPagination);
-  const paginationRef = useRef<AppDataPagination>(emptyAppDataPagination);
+  const [query, setQuery] = useState<AppDataQuery>(defaultAppDataQuery);
   const [status, setStatus] = useState<AppDataStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
-  const fetchWithPagination = useCallback(async (activePagination: AppDataPagination) => {
+  // The poll fires from a timer that must not re-subscribe every time the query
+  // changes, so the current query is mirrored into a ref for it to read.
+  const queryRef = useRef<AppDataQuery>(defaultAppDataQuery);
+
+  // At most one request is in flight, with at most one queued behind it, so a
+  // slow core cannot pile up polls.
+  const inFlight = useRef(false);
+  const queued = useRef(false);
+
+  const fetchWith = useCallback(async (activeQuery: AppDataQuery): Promise<void> => {
+    if (inFlight.current) {
+      queued.current = true;
+      return;
+    }
+
+    inFlight.current = true;
     setStatus((current) => (current === "idle" ? "loading" : current));
-    setError(null);
 
     try {
-      const nextSnapshot = await fetchAppDataSnapshot(activePagination);
+      const nextSnapshot = await fetchAppDataSnapshot(activeQuery);
       setSnapshot(nextSnapshot);
-      setPagination((current) => {
-        paginationRef.current = nextSnapshot.pagination;
-        return samePagination(current, nextSnapshot.pagination) ? current : nextSnapshot.pagination;
-      });
       setStatus("ready");
+      setError(null);
       setLastUpdatedAt(new Date().toISOString());
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Failed to refresh app data");
+    } finally {
+      inFlight.current = false;
+
+      if (queued.current) {
+        queued.current = false;
+        // The queued run uses the latest query, not the one it was queued for.
+        void fetchWith(queryRef.current);
+      }
     }
   }, []);
 
-  const refreshAppData = useCallback(() => {
-    return fetchWithPagination(paginationRef.current);
-  }, [fetchWithPagination]);
+  const refreshAppData = useCallback(() => fetchWith(queryRef.current), [fetchWith]);
 
-  const updatePagination = useCallback(
-    (collection: AppDataCollection, update: PaginationUpdate) => {
-      const currentPagination = paginationRef.current;
-      const currentPage = currentPagination[collection];
-      const nextPageSize = update.pageSize ?? currentPage.pageSize;
-      const nextPage = update.page ?? (update.pageSize ? 1 : currentPage.page);
-      const nextPagination = {
-        ...currentPagination,
-        [collection]: {
-          ...currentPage,
-          page: nextPage,
-          pageSize: nextPageSize,
-        },
+  /**
+   * The poll lives here rather than in the countdown that visualises it,
+   * because it is how the console stays current — not a property of any one
+   * widget. The mobile layout has no countdown, and must still receive data.
+   */
+  useEffect(() => {
+    void fetchWith(queryRef.current);
+
+    const id = setInterval(() => void fetchWith(queryRef.current), POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [fetchWith]);
+
+  const updateQuery = useCallback(
+    (collection: AppDataCollection, update: QueryUpdate) => {
+      const current = queryRef.current[collection];
+
+      // Anything that changes which rows match invalidates the current page:
+      // staying on page 7 of a result set that just shrank to two pages would
+      // show an empty table.
+      const narrows =
+        update.search !== undefined ||
+        update.filters !== undefined ||
+        update.pageSize !== undefined ||
+        update.sortKey !== undefined ||
+        update.sortDir !== undefined;
+
+      const next = {
+        ...current,
+        ...update,
+        page: update.page ?? (narrows ? 1 : current.page),
       };
 
-      if (samePagination(currentPagination, nextPagination)) {
+      if (sameCollectionQuery(current, next)) {
         return;
       }
 
-      paginationRef.current = nextPagination;
-      setPagination(nextPagination);
-      void fetchWithPagination(nextPagination);
+      const nextQuery = { ...queryRef.current, [collection]: next };
+      queryRef.current = nextQuery;
+      setQuery(nextQuery);
+      void fetchWith(nextQuery);
     },
-    [fetchWithPagination],
+    [fetchWith],
   );
 
   const value = useMemo(
     () => ({
       ...snapshot,
-      pagination,
+      query,
       status,
       error,
       lastUpdatedAt,
       refreshAppData,
-      updatePagination,
+      updateQuery,
     }),
-    [error, lastUpdatedAt, pagination, refreshAppData, snapshot, status, updatePagination],
+    [error, lastUpdatedAt, query, refreshAppData, snapshot, status, updateQuery],
   );
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 
-function samePagination(left: AppDataPagination, right: AppDataPagination) {
-  return (Object.keys(left) as AppDataCollection[]).every((collection) =>
-    samePageInfo(left[collection], right[collection]),
-  );
-}
-
-function samePageInfo(left: PageInfo, right: PageInfo) {
+function sameCollectionQuery(
+  left: AppDataQuery[AppDataCollection],
+  right: AppDataQuery[AppDataCollection],
+) {
   return (
     left.page === right.page &&
     left.pageSize === right.pageSize &&
-    left.totalItems === right.totalItems &&
-    left.totalPages === right.totalPages
+    left.search === right.search &&
+    left.sortKey === right.sortKey &&
+    left.sortDir === right.sortDir &&
+    left.filters.length === right.filters.length &&
+    left.filters.every((filter, index) => filter === right.filters[index])
   );
 }

@@ -1,0 +1,594 @@
+<!-- @dsCard group="Cortex Console" viewport="1440x900" subtitle="Desktop operator console — five views, light and dark" name="Cortex Console (desktop)" -->
+<!-- @startingPoint section="Screens" subtitle="Cortex desktop console, click-through" viewport="1440x900" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Synapsys Cortex — Console</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { margin: 0; background: var(--canvas); }
+    button { font-family: var(--font-ui); }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
+    const iconCache = new Map();
+    function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.9 }) {
+      const [svg, setSvg] = React.useState(() => iconCache.get(name) || null);
+      React.useEffect(() => {
+        if (iconCache.has(name)) { setSvg(iconCache.get(name)); return; }
+        let alive = true;
+        fetch(LUCIDE + name + ".svg").then(r => r.text()).then(t => { iconCache.set(name, t); if (alive) setSvg(t); }).catch(() => {});
+        return () => { alive = false; };
+      }, [name]);
+      const box = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, color, flexShrink: 0 };
+      if (!svg) return <span style={box} />;
+      const s = svg.replace(/width="24"/, 'width="' + size + '"').replace(/height="24"/, 'height="' + size + '"').replace(/stroke-width="2"/, 'stroke-width="' + strokeWidth + '"');
+      return <span style={box} dangerouslySetInnerHTML={{ __html: s }} />;
+    }
+
+    const NAV = [
+      { key: "summary", label: "Summary", icon: "bar-chart-3" },
+      { key: "workers", label: "Workers", icon: "pc-case" },
+      { key: "processes", label: "Processes", icon: "loader-circle" },
+      { key: "executions", label: "Executions", icon: "play-square" },
+      { key: "actions", label: "Actions", icon: "history" },
+    ];
+
+    const STATE = {
+      running: { bg: "var(--state-running-bg)", fg: "var(--state-running-fg)", dot: "var(--chart-running)" },
+      idle: { bg: "var(--state-idle-bg)", fg: "var(--state-idle-fg)", dot: "var(--chart-idle)" },
+      stopping: { bg: "var(--state-stopping-bg)", fg: "var(--state-stopping-fg)", dot: "var(--chart-stopping)" },
+      failed: { bg: "var(--state-failed-bg)", fg: "var(--state-failed-fg)", dot: "var(--chart-failed)" },
+    };
+
+    function Pill({ tone = "neutral", outline, mono, dot, children, style }) {
+      const t = STATE[tone];
+      const bg = outline ? "transparent" : t ? t.bg : "var(--surface-sunken)";
+      const fg = t ? t.fg : outline ? "var(--brand-soft-text)" : "var(--text-body)";
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: bg, color: fg,
+          border: outline ? "1px solid " + (t ? "currentColor" : "var(--border-brand)") : "1px solid transparent",
+          font: mono ? "var(--text-mono-sm)" : "var(--text-caption)", fontWeight: mono ? 400 : 600,
+          padding: outline ? "2px 10px" : "3px 10px", borderRadius: "var(--radius-pill)", whiteSpace: "nowrap", ...style }}>
+          {dot && <span style={{ width: 6, height: 6, borderRadius: 999, background: "currentColor" }} />}
+          {children}
+        </span>
+      );
+    }
+
+    function Btn({ variant = "default", size = "sm", disabled, children, onClick, iconLeft, style }) {
+      const V = {
+        default: { background: "var(--brand)", color: "#fff", border: "1px solid transparent", boxShadow: "var(--shadow-brand)" },
+        outline: { background: "var(--surface-card)", color: "var(--text-body)", border: "1px solid var(--border)" },
+        destructive: { background: "var(--state-failed-bg)", color: "var(--state-failed-fg)", border: "1px solid transparent" },
+        ghost: { background: "transparent", color: "var(--text-body)", border: "1px solid transparent" },
+      }[variant];
+      const S = { sm: { height: 30, padding: "0 13px", radius: "var(--radius-sm)" }, default: { height: 38, padding: "0 17px", radius: "var(--radius-md)" }, lg: { height: 44, padding: "0 18px", radius: "var(--radius-md)" }, icon: { height: 32, width: 32, padding: 0, radius: "var(--radius-sm)" } }[size];
+      return (
+        <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+          height: S.height, width: S.width, padding: S.padding, borderRadius: S.radius, font: "var(--text-body-sm)", fontWeight: 600,
+          opacity: disabled ? 0.42 : 1, cursor: disabled ? "not-allowed" : "pointer", whiteSpace: "nowrap",
+          transition: "filter 120ms cubic-bezier(.2,0,.2,1)", ...V, ...style }}>
+          {iconLeft}{children}
+        </button>
+      );
+    }
+
+    function Tile({ label, value, hint, icon, mono, style }) {
+      return (
+        <div style={{ background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+          padding: "11px 13px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, ...style }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+            <span style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>{label}</span>
+            <span style={{ font: mono ? "var(--text-mono-md)" : "var(--text-body-lg)", fontWeight: mono ? 400 : 600, color: "var(--text-heading)", overflowWrap: "anywhere" }}>{value}</span>
+            {hint && <span style={{ font: "var(--text-caption)", color: "var(--text-muted)" }}>{hint}</span>}
+          </div>
+          {icon}
+        </div>
+      );
+    }
+
+    function Meter({ label, value, total, tone = "brand", dot, showBar = true }) {
+      const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+      const c = STATE[tone] ? STATE[tone].dot : "var(--brand)";
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            {dot && <span style={{ width: 8, height: 8, borderRadius: 999, background: c }} />}
+            <span style={{ font: "var(--text-body-md)", color: "var(--text-body)", flexGrow: 1 }}>{label}</span>
+            <span style={{ font: "var(--text-mono-md)", color: "var(--text-heading)" }}>{value}</span>
+          </div>
+          {showBar && (
+            <div style={{ height: 4, background: "var(--chart-track)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ width: pct + "%", height: "100%", background: c, borderRadius: 999, transition: "width 180ms cubic-bezier(.2,0,.2,1)" }} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Donut({ counts, total, size = 104 }) {
+      let at = 0;
+      const stops = [["running", "var(--chart-running)"], ["idle", "var(--chart-idle)"], ["stopping", "var(--chart-stopping)"], ["failed", "var(--chart-failed)"]]
+        .map(([k, c]) => { const from = at; at += ((counts[k] || 0) / (total || 1)) * 100; return c + " " + from + "% " + at + "%"; }).join(", ");
+      const inner = Math.round(size * 0.69);
+      return (
+        <div style={{ width: size, height: size, borderRadius: 999, flexShrink: 0, display: "grid", placeItems: "center", background: total ? "conic-gradient(" + stops + ")" : "var(--chart-track)" }}>
+          <div style={{ width: inner, height: inner, borderRadius: 999, background: "var(--surface-card)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ font: "var(--text-display-sm)", letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>{total}</span>
+            <span style={{ font: "var(--text-eyebrow)", color: "var(--text-faint)" }}>loaded</span>
+          </div>
+        </div>
+      );
+    }
+
+    function Panel({ title, description, aside, children, style, padded = true }) {
+      return (
+        <div style={{ background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-card)", padding: padded ? "18px 20px" : 0, display: "flex", flexDirection: "column", gap: 15, ...style }}>
+          {(title || aside) && (
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {title && <div style={{ font: "var(--text-title)", color: "var(--text-heading)" }}>{title}</div>}
+                {description && <div style={{ font: "var(--text-body-sm)", color: "var(--text-muted)" }}>{description}</div>}
+              </div>
+              {aside}
+            </div>
+          )}
+          {children}
+        </div>
+      );
+    }
+
+    /* ---- fixture data, shaped like the API's ProcessOverview / Worker / Execution / Action ---- */
+    const STATES = ["idle", "running", "stopping", "failed", "idle", "running", "idle", "idle", "running", "idle"];
+    const PROCESSES = STATES.map((s, i) => ({
+      id: i + 1, name: "endless process " + [1, 10, 100, 11, 12, 13, 14, 15, 16, 17][i],
+      workerName: "springboot-user-1", host: "DESKTOP-2NJS2Q4", type: "endless", framework: "springboot",
+      currentState: s, desiredState: s === "failed" ? "running" : s, desiredToken: 4, ackToken: s === "stopping" ? 3 : 4, lastTouch: "18:10:40",
+    }));
+    const WORKERS = [{ id: 1, name: "springboot-user-1", host: "DESKTOP-2NJS2Q4", framework: "springboot",
+      firstConnection: "18:08:55", lastConnection: "18:10:10", lastTouch: "18:10:10", processCount: 200 }];
+    const EXECUTIONS = STATES.map((s, i) => ({ id: 200 - i, processId: 200 - i, runId: 12 - i, status: i % 7 === 3 ? "inactive" : "active",
+      currentStatus: s, desiredState: s === "failed" ? "running" : s, createdAt: "18:08:55", modifiedAt: "18:11:10" }));
+    const ACTIONS = ["create", "heartbeat", "ack", "start", "stop", "heartbeat", "ack", "create", "heartbeat", "ack"]
+      .map((t, i) => ({ id: 200 - i, executionId: 200 - i, type: t, status: i === 4 ? "waiting" : i === 7 ? "failed" : "done", createdAt: "18:08:5" + (9 - (i % 9)) }));
+    const ACTION_ICON = { ack: "check-circle-2", heartbeat: "radio-tower", create: "plus-circle", start: "play", stop: "square" };
+    const ACTION_TONE = { done: "running", waiting: "stopping", failed: "failed" };
+    const COUNTS = PROCESSES.reduce((a, p) => ({ ...a, [p.currentState]: (a[p.currentState] || 0) + 1 }), {});
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+    function TopBar({ status, theme, onToggleTheme }) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "var(--topbar-h)",
+          padding: "0 var(--shell-pad-x)", background: "var(--surface-card)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ display: "inline-flex", width: 25, height: 25, flexShrink: 0 }}>
+              <svg width="25" height="25" viewBox="0 0 48 48" role="img" aria-label="Synapsys">
+                <circle cx="24" cy="24" r="22" fill="var(--brand)" />
+                <path d="M24 24 24 9M24 24 36.99 31.5M24 24 11.01 31.5" fill="none" stroke="#FFFFFF" strokeWidth="2.6" strokeLinecap="round" />
+                <circle cx="24" cy="24" r="6" fill="#FFFFFF" />
+                <circle cx="24" cy="9" r="4" fill="var(--teal-500)" />
+                <circle cx="36.99" cy="31.5" r="4" fill="var(--teal-500)" />
+                <circle cx="11.01" cy="31.5" r="4" fill="var(--teal-500)" />
+              </svg>
+            </span>
+            <span style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
+              <span style={{ font: "var(--text-display-sm)", fontSize: 17, letterSpacing: "var(--tracking-tight)", color: "var(--text-heading)" }}>Synapsys</span>
+              <span style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>Cortex</span>
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <Pill tone={status === "online" ? "running" : "failed"} dot>{status === "online" ? "Core online" : "Core offline"}</Pill>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5, width: 124 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", font: "var(--text-eyebrow)", color: "var(--text-faint)" }}>
+                <span>heartbeat</span><span style={{ font: "var(--text-mono-sm)", color: "var(--text-muted)" }}>4s</span>
+              </div>
+              <div style={{ height: 4, background: "var(--chart-track)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ width: "62%", height: "100%", background: "var(--brand)", borderRadius: 999 }} />
+              </div>
+            </div>
+            <Btn size="icon" variant="outline" onClick={onToggleTheme} iconLeft={<Icon name={theme === "dark" ? "sun" : "moon"} size={15} color="var(--text-muted)" />} />
+            <span style={{ width: 32, height: 32, borderRadius: 999, background: "var(--brand-soft)", color: "var(--brand-soft-text)",
+              font: "var(--text-caption)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>SU</span>
+          </div>
+        </div>
+      );
+    }
+
+    function SideBar({ active, onSelect }) {
+      const counts = { workers: 1, processes: 200, executions: 200, actions: 200 };
+      return (
+        <div style={{ width: "var(--sidebar-w)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)", padding: "2px 12px 10px" }}>Monitor</div>
+          {NAV.map(item => {
+            const on = item.key === active;
+            return (
+              <div key={item.key} onClick={() => onSelect(item.key)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 12px",
+                borderRadius: "var(--radius-sm)", cursor: "pointer", font: "var(--text-body-lg)", fontWeight: on ? 600 : 500,
+                background: on ? "var(--brand)" : "transparent", color: on ? "#fff" : "var(--text-body)", boxShadow: on ? "var(--shadow-brand)" : "none" }}>
+                <Icon name={item.icon} size={16} color={on ? "#fff" : "var(--text-faint)"} strokeWidth={on ? 2 : 1.9} />
+                {item.label}
+                {counts[item.key] != null && (
+                  <span style={{ marginLeft: "auto", font: "var(--text-mono-sm)", background: on ? "rgba(255,255,255,0.2)" : "var(--surface-sunken)",
+                    color: on ? "#fff" : "var(--text-muted)", padding: "1px 7px", borderRadius: "var(--radius-xs)" }}>{counts[item.key]}</span>
+                )}
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 16, background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+            padding: 15, display: "flex", flexDirection: "column", gap: 10, boxShadow: "var(--shadow-card)" }}>
+            <div style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>Command queue</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ font: "var(--text-display-sm)", letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>1</span>
+              <span style={{ font: "var(--text-caption)", color: "var(--text-muted)" }}>pending</span>
+            </div>
+            <div style={{ height: 4, background: "var(--chart-track)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ width: "10%", height: "100%", background: "var(--brand)", borderRadius: 999 }} />
+            </div>
+            <div style={{ font: "var(--text-caption)", color: "var(--text-muted)", lineHeight: 1.5 }}>One worker has not acknowledged its desired token.</div>
+          </div>
+        </div>
+      );
+    }
+
+    function PageHeader({ title, meta, actions }) {
+      return (
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ font: "var(--text-display)", letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>{title}</div>
+            {meta && <div style={{ font: "var(--text-body-md)", color: "var(--text-muted)" }}>{meta}</div>}
+          </div>
+          {actions && <div style={{ display: "flex", alignItems: "center", gap: 9 }}>{actions}</div>}
+        </div>
+      );
+    }
+
+    function Toolbar({ placeholder, filterLabel, filterCount, onRefresh }) {
+      return (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, background: "var(--surface-card)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)", padding: "9px 13px", width: 204 }}>
+            <Icon name="search" size={14} color="var(--text-muted)" strokeWidth={2} />
+            <span style={{ font: "var(--text-body-md)", color: "var(--text-muted)" }}>{placeholder}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-card)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)", padding: "9px 13px", font: "var(--text-body-md)", color: "var(--text-body)", cursor: "pointer" }}>
+            {filterLabel}
+            <span style={{ background: "var(--brand-soft)", color: "var(--brand-soft-text)", font: "var(--text-caption)", fontWeight: 700, padding: "1px 7px", borderRadius: "var(--radius-xs)" }}>{filterCount}</span>
+          </div>
+          <Btn size="default" onClick={onRefresh}>Refresh</Btn>
+        </>
+      );
+    }
+
+    function Table({ columns, rows, sortKey, page, pageSize, totalItems, onPage, onPageSize }) {
+      const template = columns.map(c => c.width || "1fr").join(" ");
+      const totalPages = Math.ceil(totalItems / pageSize);
+      const first = (page - 1) * pageSize + 1;
+      const last = Math.min(page * pageSize, totalItems);
+      const pages = [...new Set([1, page - 1, page, page + 1, totalPages].filter(p => p >= 1 && p <= totalPages))].sort((a, b) => a - b);
+
+      return (
+        <div style={{ background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+          overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: template, alignItems: "center", height: 38, padding: "0 20px",
+            background: "var(--surface-subtle)", borderBottom: "1px solid var(--border)", font: "var(--text-eyebrow)",
+            letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-faint)" }}>
+            {columns.map(c => (
+              <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: c.align === "right" ? "flex-end" : "flex-start",
+                color: c.key === sortKey ? "var(--text-body)" : "inherit" }}>
+                {c.header}
+                {c.key === sortKey && <span style={{ color: "var(--brand)", fontSize: 8 }}>▲</span>}
+              </div>
+            ))}
+          </div>
+          {rows.map((row, i) => (
+            <div key={row.id} style={{ display: "grid", gridTemplateColumns: template, alignItems: "center", minHeight: "var(--row-h)",
+              padding: "0 20px", borderBottom: i === rows.length - 1 ? "none" : "1px solid var(--border)",
+              background: row.highlight ? "var(--surface-subtle)" : "transparent" }}>
+              {columns.map(c => (
+                <div key={c.key} style={{ display: "flex", justifyContent: c.align === "right" ? "flex-end" : "flex-start", minWidth: 0 }}>{row.cells[c.key]}</div>
+              ))}
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px",
+            background: "var(--surface-subtle)", borderTop: "1px solid var(--border)" }}>
+            <span style={{ font: "var(--text-body-sm)", color: "var(--text-muted)" }}>
+              Showing <span style={{ font: "var(--text-mono-md)", color: "var(--text-heading)" }}>{first}–{last}</span> of <span style={{ font: "var(--text-mono-md)", color: "var(--text-heading)" }}>{totalItems}</span>
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "inline-flex", gap: 2, padding: 3, background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                {[10, 25, 50].map(n => (
+                  <span key={n} onClick={() => onPageSize(n)} style={{ padding: "4px 10px", borderRadius: "var(--radius-xs)", cursor: "pointer",
+                    font: "var(--text-body-sm)", fontWeight: n === pageSize ? 700 : 500, background: n === pageSize ? "var(--brand)" : "transparent",
+                    color: n === pageSize ? "#fff" : "var(--text-muted)" }}>{n}</span>
+                ))}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span onClick={() => page > 1 && onPage(page - 1)} style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", opacity: page > 1 ? 1 : 0.45, cursor: "pointer" }}>
+                  <Icon name="chevron-left" size={13} color="var(--text-body)" strokeWidth={2.3} />
+                </span>
+                {pages.map((p, i) => (
+                  <React.Fragment key={p}>
+                    {i > 0 && p - pages[i - 1] > 1 && <span style={{ color: "var(--text-faint)", font: "var(--text-body-sm)", padding: "0 4px" }}>…</span>}
+                    <span onClick={() => onPage(p)} style={{ minWidth: 28, height: 28, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      borderRadius: "var(--radius-sm)", cursor: "pointer", font: "var(--text-body-sm)", fontWeight: p === page ? 700 : 500,
+                      background: p === page ? "var(--brand-soft)" : "transparent", color: p === page ? "var(--brand-soft-text)" : "var(--text-body)" }}>{p}</span>
+                  </React.Fragment>
+                ))}
+                <span onClick={() => page < totalPages && onPage(page + 1)} style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer" }}>
+                  <Icon name="chevron-right" size={13} color="var(--text-body)" strokeWidth={2.3} />
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const nameCell = (title, sub) => (
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, minWidth: 0 }}>
+        <span style={{ font: "var(--text-body-lg)", fontWeight: 600, color: "var(--text-heading)" }}>{title}</span>
+        <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>{sub}</span>
+      </div>
+    );
+    const mono = (v) => <span style={{ font: "var(--text-mono-md)", color: "var(--text-muted)" }}>{v}</span>;
+    const plain = (v) => <span style={{ font: "var(--text-body-md)", color: "var(--text-body)" }}>{v}</span>;
+
+    /* ------------------------------ screens ------------------------------ */
+
+    function SummaryScreen() {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <PageHeader title="Summary" meta="Core activity, worker coverage and command health · polled 4 seconds ago"
+            actions={<Btn size="default" variant="outline" iconLeft={<Icon name="refresh-cw" size={14} color="var(--text-muted)" />}>Synced 18:11:10</Btn>} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+            <Tile label="Workers" value="1" hint="1 loaded in state" icon={<Icon name="cpu" size={20} color="var(--text-faint)" />} />
+            <Tile label="Processes" value="200" hint="6 active on this page" icon={<Icon name="layers-3" size={20} color="var(--text-faint)" />} />
+            <Tile label="Executions" value="200" hint="10 loaded in state" icon={<Icon name="activity" size={20} color="var(--text-faint)" />} />
+            <Tile label="Actions" value="200" hint="10 recent actions" icon={<Icon name="boxes" size={20} color="var(--text-faint)" />} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Panel title="Process state" description="Current states from the loaded page.">
+              <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
+                <Donut counts={COUNTS} total={PROCESSES.length} />
+                <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", gap: 11 }}>
+                  <Meter label="Running" value={COUNTS.running || 0} total={10} tone="running" dot showBar={false} />
+                  <Meter label="Idle" value={COUNTS.idle || 0} total={10} tone="idle" dot showBar={false} />
+                  <Meter label="Stopping" value={COUNTS.stopping || 0} total={10} tone="stopping" dot showBar={false} />
+                  <Meter label="Failed" value={COUNTS.failed || 0} total={10} tone="failed" dot showBar={false} />
+                </div>
+              </div>
+            </Panel>
+            <Panel title="Worker frameworks" description="Framework mix for workers in the current state.">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Meter label="Spring Boot" value={1} total={1} />
+                <Meter label="Node.js" value={0} total={1} />
+                <Meter label="Python" value={0} total={1} />
+                <Meter label="Unknown" value={0} total={1} />
+              </div>
+            </Panel>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Panel title="Command queue" description="Processes waiting for workers to acknowledge desired tokens.">
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
+                  <span style={{ font: "var(--text-display)", letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>1</span>
+                  <span style={{ font: "var(--text-body-md)", color: "var(--text-muted)" }}>pending command</span>
+                </div>
+                <Icon name="radio-tower" size={22} color="var(--text-faint)" />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {PROCESSES.slice(0, 4).map(p => {
+                  const pending = p.desiredToken > p.ackToken;
+                  return (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                      padding: "10px 12px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                        <span style={{ font: "var(--text-body-md)", fontWeight: 600, color: "var(--text-heading)" }}>{p.name}</span>
+                        <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>desired {p.desiredToken} · ack {p.ackToken}</span>
+                      </div>
+                      <Pill tone={pending ? "stopping" : "running"}>{pending ? "waiting" : "synced"}</Pill>
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+            <Panel title="Recent actions" description="Latest history from the state snapshot.">
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {ACTIONS.slice(0, 5).map(a => (
+                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+                    background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                    <span style={{ width: 30, height: 30, borderRadius: "var(--radius-sm)", background: "var(--surface-card)",
+                      border: "1px solid var(--border)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      <Icon name={ACTION_ICON[a.type]} size={15} color="var(--text-muted)" />
+                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flexGrow: 1 }}>
+                      <span style={{ font: "var(--text-body-md)", fontWeight: 600, color: "var(--text-heading)" }}>{cap(a.type)}</span>
+                      <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>execution #{a.executionId} · {a.createdAt}</span>
+                    </div>
+                    <Pill tone={ACTION_TONE[a.status]}>{a.status}</Pill>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+        </div>
+      );
+    }
+
+    function ProcessesScreen({ page, pageSize, setPage, setPageSize }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <PageHeader title="Processes" meta="200 total · 10 on this page · polled 4 seconds ago"
+            actions={<Toolbar placeholder="Search processes" filterLabel="State" filterCount={2} />} />
+          <Table sortKey="name" page={page} pageSize={pageSize} totalItems={200} onPage={setPage} onPageSize={setPageSize}
+            columns={[
+              { key: "name", header: "Process" },
+              { key: "type", header: "Type", width: "112px" },
+              { key: "state", header: "State", width: "116px" },
+              { key: "framework", header: "Framework", width: "124px" },
+              { key: "touch", header: "Last touch", width: "116px" },
+              { key: "actions", header: "Actions", width: "156px", align: "right" },
+            ]}
+            rows={PROCESSES.map((p, i) => {
+              const running = p.currentState === "running";
+              const stopping = p.currentState === "stopping";
+              const failed = p.currentState === "failed";
+              return { id: p.id, highlight: i === 0, cells: {
+                name: nameCell(p.name, p.workerName),
+                type: <Pill outline>{p.type === "endless" ? "Endless" : "Progressive"}</Pill>,
+                state: <Pill tone={p.currentState}>{p.currentState}</Pill>,
+                framework: plain("Spring Boot"),
+                touch: mono(p.lastTouch),
+                actions: (
+                  <div style={{ display: "flex", gap: 7 }}>
+                    <Btn variant={running || stopping ? "outline" : "default"} disabled={running || stopping}>{failed ? "Retry" : "Start"}</Btn>
+                    <Btn variant={running ? "destructive" : "outline"} disabled={!running}>Stop</Btn>
+                  </div>
+                ),
+              } };
+            })} />
+        </div>
+      );
+    }
+
+    function WorkersScreen({ page, pageSize, setPage, setPageSize }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <PageHeader title="Workers" meta="1 total · 1 on this page · polled 4 seconds ago"
+            actions={<Toolbar placeholder="Search workers" filterLabel="Framework" filterCount={1} />} />
+          <Table sortKey="name" page={page} pageSize={pageSize} totalItems={1} onPage={setPage} onPageSize={setPageSize}
+            columns={[
+              { key: "name", header: "Worker" },
+              { key: "framework", header: "Framework", width: "124px" },
+              { key: "first", header: "First seen", width: "116px" },
+              { key: "last", header: "Last seen", width: "116px" },
+              { key: "processes", header: "Processes", width: "104px" },
+              { key: "actions", header: "", width: "104px", align: "right" },
+            ]}
+            rows={WORKERS.map(w => ({ id: w.id, highlight: true, cells: {
+              name: nameCell(w.name, "#" + w.id + " · " + w.host),
+              framework: <Pill outline>Spring Boot</Pill>,
+              first: mono(w.firstConnection),
+              last: mono(w.lastConnection),
+              processes: mono("200"),
+              actions: <Btn variant="outline">Processes</Btn>,
+            } }))} />
+          <Panel title="Coverage" description="One worker is answering. Every process on this page belongs to it.">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+              <Tile label="Host" value="DESKTOP-2NJS2Q4" mono />
+              <Tile label="First connection" value="18:08:55" mono />
+              <Tile label="Last touch" value="18:10:10" mono />
+              <Tile label="Heartbeat gap" value="4s" mono />
+            </div>
+          </Panel>
+        </div>
+      );
+    }
+
+    function ExecutionsScreen({ page, pageSize, setPage, setPageSize }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <PageHeader title="Executions" meta="200 total · 10 on this page · polled 4 seconds ago"
+            actions={<Toolbar placeholder="Search executions" filterLabel="Status" filterCount={2} />} />
+          <Table sortKey="id" page={page} pageSize={pageSize} totalItems={200} onPage={setPage} onPageSize={setPageSize}
+            columns={[
+              { key: "id", header: "Execution" },
+              { key: "status", header: "Status", width: "112px" },
+              { key: "state", header: "Current", width: "116px" },
+              { key: "desired", header: "Desired", width: "132px" },
+              { key: "created", header: "Created", width: "112px" },
+              { key: "modified", header: "Modified", width: "112px" },
+            ]}
+            rows={EXECUTIONS.map((e, i) => ({ id: e.id, highlight: i === 0, cells: {
+              id: nameCell("Execution #" + e.id, "process #" + e.processId + (e.runId ? " · run " + e.runId : "")),
+              status: <Pill tone={e.status === "active" ? "running" : undefined}>{e.status}</Pill>,
+              state: <Pill tone={e.currentStatus}>{e.currentStatus}</Pill>,
+              desired: <Pill tone={e.desiredState} outline>desired {e.desiredState}</Pill>,
+              created: mono(e.createdAt),
+              modified: mono(e.modifiedAt),
+            } }))} />
+        </div>
+      );
+    }
+
+    function ActionsScreen({ page, pageSize, setPage, setPageSize }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <PageHeader title="Actions" meta="200 total · 10 on this page · polled 4 seconds ago"
+            actions={<Toolbar placeholder="Search actions" filterLabel="Type" filterCount={5} />} />
+          <Table sortKey="id" page={page} pageSize={pageSize} totalItems={200} onPage={setPage} onPageSize={setPageSize}
+            columns={[
+              { key: "id", header: "Action" },
+              { key: "type", header: "Type", width: "132px" },
+              { key: "status", header: "Status", width: "116px" },
+              { key: "execution", header: "Execution", width: "124px" },
+              { key: "created", header: "Created", width: "124px" },
+            ]}
+            rows={ACTIONS.map((a, i) => ({ id: a.id, highlight: i === 0, cells: {
+              id: (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  <span style={{ width: 28, height: 28, borderRadius: "var(--radius-sm)", background: "var(--surface-subtle)",
+                    border: "1px solid var(--border)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Icon name={ACTION_ICON[a.type]} size={14} color="var(--text-muted)" />
+                  </span>
+                  {nameCell("Action #" + a.id, cap(a.type))}
+                </div>
+              ),
+              type: <Pill outline>{cap(a.type)}</Pill>,
+              status: <Pill tone={ACTION_TONE[a.status]}>{a.status}</Pill>,
+              execution: mono("#" + a.executionId),
+              created: mono(a.createdAt),
+            } }))} />
+        </div>
+      );
+    }
+
+    function App() {
+      const [view, setView] = React.useState("processes");
+      const [theme, setTheme] = React.useState("light");
+      const [page, setPage] = React.useState(1);
+      const [pageSize, setPageSize] = React.useState(10);
+
+      React.useEffect(() => {
+        document.documentElement.classList.toggle("dark", theme === "dark");
+      }, [theme]);
+      React.useEffect(() => { setPage(1); }, [view]);
+
+      const nav = { page, pageSize, setPage, setPageSize };
+      const screens = {
+        summary: <SummaryScreen />,
+        workers: <WorkersScreen {...nav} />,
+        processes: <ProcessesScreen {...nav} />,
+        executions: <ExecutionsScreen {...nav} />,
+        actions: <ActionsScreen {...nav} />,
+      };
+
+      return (
+        <div style={{ width: 1440, minHeight: 900, background: "var(--canvas)", display: "flex", flexDirection: "column", position: "relative" }}>
+          <TopBar status="online" theme={theme} onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")} />
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--shell-gap)", padding: "var(--shell-pad-y) var(--shell-pad-x) 26px" }}>
+            <SideBar active={view} onSelect={setView} />
+            <div style={{ flexGrow: 1, minWidth: 0 }}>{screens[view]}</div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

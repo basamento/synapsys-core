@@ -6,61 +6,52 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format";
 import { useAppData } from "@/state/use-app-data";
 
-export function CoreStatusIndicator() {
+/**
+ * Whether the core is still answering — the one question the whole console
+ * exists to keep visible. When it is not, the pill turns red and carries the
+ * reason in its tooltip; there is no toast.
+ */
+export function CoreStatusIndicator({ compact = false }: { compact?: boolean }) {
   const { status, error, lastUpdatedAt } = useAppData();
-  const state = getCoreStatus(status);
+
+  const tone = status === "error" ? "failed" : status === "ready" ? "running" : "neutral";
+  const label =
+    status === "error"
+      ? compact
+        ? "Offline"
+        : "Core offline"
+      : status === "ready"
+        ? compact
+          ? "Online"
+          : "Core online"
+        : "Checking core";
+
+  const detail =
+    status === "error" && error
+      ? error
+      : lastUpdatedAt
+        ? `Last sync: ${formatDateTime(lastUpdatedAt)}`
+        : "Waiting for first sync";
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
           <Badge
-            variant="outline"
-            className="h-8 gap-2 rounded-md px-3 font-medium text-muted-foreground"
+            tone={tone}
+            // The dot pulses only while checking: a loop in this console always
+            // means "still alive", never decoration.
+            className={cn(compact && "px-2.25 py-1", status === "idle" && "animate-[cortex-pulse_1.4s_ease-in-out_infinite]")}
+            dot
           >
-            <span className={cn("size-2.5 rounded-full", state.dotClass)} />
-            <span>{state.label}</span>
+            {label}
           </Badge>
         </TooltipTrigger>
-        <TooltipContent sideOffset={8}>
-          {status === "error" && error
-            ? error
-            : lastUpdatedAt
-              ? `Last sync: ${formatTime(lastUpdatedAt)}`
-              : "Waiting for first sync"}
-        </TooltipContent>
+        <TooltipContent sideOffset={8}>{detail}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
-}
-
-function getCoreStatus(status: "idle" | "loading" | "ready" | "error") {
-  if (status === "error") {
-    return {
-      label: "Core offline",
-      dotClass: "bg-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.16)]",
-    };
-  }
-
-  if (status === "ready") {
-    return {
-      label: "Core online",
-      dotClass: "bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.16)]",
-    };
-  }
-
-  return {
-    label: "Checking core",
-    dotClass: "bg-muted-foreground/70 shadow-[0_0_0_3px_rgba(148,163,184,0.14)]",
-  };
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(value));
 }

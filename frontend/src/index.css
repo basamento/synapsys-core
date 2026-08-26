@@ -1,13 +1,246 @@
-@import "tailwindcss";
+/* ---------------------------------------------------------------------------
+   Synapsys Cortex — design tokens.
+
+   This file is the only place a colour, font, radius, shadow or motion value is
+   written down. Everything else in the app references these through Tailwind
+   utilities. To restyle the console, change it here and nowhere else.
+
+   Layers, in order:
+     1. fonts        self-hosted, so the console still renders offline
+     2. palette      raw ramps — the only literal colours in the codebase
+     3. semantics    what the palette *means* (canvas, brand, running, …)
+     4. shadcn slots the primitive layer's variables, aliased onto semantics
+     5. @theme       the above, published to Tailwind as utilities
+     6. @utility     composite type styles, since a font is five properties
+     7. @layer base  document defaults
+--------------------------------------------------------------------------- */
+
+/* 1. Fonts ---------------------------------------------------------------- */
+/* Bricolage Grotesque for display, Manrope for UI, IBM Plex Mono for anything
+   the core reported. Self-hosted and latin-only — see fonts.css for why. */
+@import "./fonts.css";
+
+/* Scan only the app. Tailwind's automatic detection would also read README.md
+   and the design/ folder, generating utilities for class names that appear
+   there as prose or reference material. */
+@import "tailwindcss" source("./");
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* 2. Palette -------------------------------------------------------------- */
+/* Theme-independent ramps. Nothing outside this block should name a hex value. */
+:root {
+  --violet-100: #f2efff;
+  --violet-200: #e4ddff;
+  --violet-300: #d9cfff;
+  --violet-400: #9e86ff;
+  --violet-500: #6d4aff;
+  --violet-600: #5f3df2;
+  --violet-700: #4a2bd0;
+  --violet-900: #2a2160;
+  --violet-950: #251e52;
+
+  --teal-100: #e9f7f4;
+  --teal-500: #12b5a0;
+  --teal-700: #0b7767;
+  --teal-950: #0e3b33;
+
+  --amber-100: #fff8ec;
+  --amber-500: #e0a63c;
+  --amber-700: #8a5806;
+  --amber-950: #3b2a0e;
+
+  --red-100: #fbe6e5;
+  --red-400: #ff9c95;
+  --red-500: #f0736c;
+  --red-600: #d9453e;
+  --red-700: #a62a25;
+  --red-950: #3d1614;
+
+  /* light neutrals — lilac-grey, never pure grey */
+  --lilac-50: #faf8ff;
+  --lilac-100: #f4f2fa;
+  --lilac-200: #edeaf6;
+  --lilac-300: #e8e5f2;
+  --lilac-400: #a9a4be;
+  --lilac-450: #8b84a4;
+  --lilac-500: #7c7594;
+  --lilac-600: #5f5a78;
+  --lilac-700: #3a3550;
+  --lilac-900: #14121f;
+
+  /* dark neutrals — blue-black */
+  --ink-950: #07080c;
+  --ink-900: #0a0c11;
+  --ink-850: #0f1219;
+  --ink-800: #131722;
+  --ink-750: #141822;
+  --ink-700: #1a1e28;
+  --ink-650: #1f2430;
+  --ink-600: #232836;
+  --ink-500: #5e6479;
+  --ink-400: #6e7489;
+  --ink-300: #7b819a;
+  --ink-200: #a6acc0;
+  --ink-100: #d4d7e2;
+  --ink-50: #e9eaf0;
+}
+
+/* 3. Semantics — light (the default theme) -------------------------------- */
+:root {
+  --canvas: var(--lilac-100);
+  --surface-card: #ffffff;
+  --surface-subtle: var(--lilac-50);
+  --surface-sunken: var(--lilac-200);
+
+  --edge: var(--lilac-300);
+  --edge-strong: var(--lilac-400);
+  --edge-brand: var(--violet-300);
+
+  --text-heading: var(--lilac-900);
+  --text-body: var(--lilac-700);
+  --text-muted: var(--lilac-500);
+  /* faint carries data — hosts, ids, timestamps — so it clears AA on white at
+     4.6:1 and deliberately equals muted. Do not lighten it. */
+  --text-faint: var(--lilac-500);
+  --text-on-brand: #ffffff;
+
+  --brand: var(--violet-600);
+  --brand-hover: var(--violet-700);
+  --brand-soft: var(--violet-100);
+  --brand-soft-text: var(--violet-700);
+  --focus-ring: color-mix(in oklch, var(--violet-600) 45%, transparent);
+
+  /* The four state colours are fixed. Never reassign them, and never colour an
+     icon with one — the badge carries state. */
+  --state-running-bg: var(--teal-100);
+  --state-running-fg: var(--teal-700);
+  --state-running-dot: var(--teal-500);
+  --state-idle-bg: var(--violet-100);
+  --state-idle-fg: var(--violet-700);
+  --state-idle-dot: var(--violet-600);
+  --state-stopping-bg: var(--amber-100);
+  --state-stopping-fg: var(--amber-700);
+  --state-stopping-dot: var(--amber-500);
+  --state-failed-bg: var(--red-100);
+  --state-failed-fg: var(--red-700);
+  --state-failed-dot: var(--red-600);
+
+  --meter-track: var(--lilac-200);
+  --scrim: rgb(10 12 17 / 0.5);
+
+  --elevation-card: 0 6px 18px rgb(20 18 31 / 0.05);
+  --elevation-raised: 0 10px 26px rgb(20 18 31 / 0.08);
+  --elevation-overlay: 0 18px 44px rgb(20 18 31 / 0.14);
+  --elevation-brand: 0 6px 18px rgb(95 61 242 / 0.28);
+}
+
+/* 3b. Semantics — dark ---------------------------------------------------- */
+.dark {
+  --canvas: var(--ink-900);
+  --surface-card: var(--ink-850);
+  --surface-subtle: var(--ink-750);
+  --surface-sunken: var(--ink-800);
+
+  --edge: var(--ink-700);
+  --edge-strong: var(--ink-600);
+  --edge-brand: #3d3568;
+
+  --text-heading: #ffffff;
+  --text-body: var(--ink-100);
+  --text-muted: var(--ink-300);
+  --text-faint: var(--ink-400);
+  --text-on-brand: #ffffff;
+
+  --brand: var(--violet-500);
+  --brand-hover: #7d5cff;
+  --brand-soft: var(--violet-950);
+  --brand-soft-text: #c4b0ff;
+  --focus-ring: color-mix(in oklch, var(--violet-400) 55%, transparent);
+
+  --state-running-bg: var(--teal-950);
+  --state-running-fg: var(--teal-500);
+  --state-running-dot: var(--teal-500);
+  --state-idle-bg: var(--violet-950);
+  --state-idle-fg: #9c94c6;
+  --state-idle-dot: var(--violet-500);
+  --state-stopping-bg: var(--amber-950);
+  --state-stopping-fg: var(--amber-500);
+  --state-stopping-dot: var(--amber-500);
+  --state-failed-bg: var(--red-950);
+  --state-failed-fg: var(--red-500);
+  --state-failed-dot: var(--red-500);
+
+  --meter-track: var(--ink-700);
+  --scrim: rgb(7 8 12 / 0.6);
+
+  --elevation-card: 0 12px 32px rgb(0 0 0 / 0.32);
+  --elevation-raised: 0 16px 38px rgb(0 0 0 / 0.42);
+  --elevation-overlay: 0 24px 56px rgb(0 0 0 / 0.55);
+  --elevation-brand: 0 6px 18px rgb(109 74 255 / 0.32);
+}
+
+/* 4. shadcn slots --------------------------------------------------------- */
+/* The primitives in components/ui read these names. Aliasing them onto the
+   semantics above means a shadcn component inherits the theme for free — no
+   per-component branching, and no second set of colour values to keep in sync. */
+:root,
+.dark {
+  --background: var(--canvas);
+  --foreground: var(--text-body);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-heading);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-heading);
+  --primary: var(--brand);
+  --primary-foreground: var(--text-on-brand);
+  --secondary: var(--surface-sunken);
+  --secondary-foreground: var(--text-body);
+  --muted: var(--surface-subtle);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--brand-soft);
+  --accent-foreground: var(--brand-soft-text);
+  --destructive: var(--state-failed-dot);
+  --destructive-foreground: var(--text-on-brand);
+  --border: var(--edge);
+  --input: var(--edge);
+  --ring: var(--brand);
+
+  --sidebar: var(--canvas);
+  --sidebar-foreground: var(--text-body);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--text-on-brand);
+  --sidebar-accent: var(--brand-soft);
+  --sidebar-accent-foreground: var(--brand-soft-text);
+  --sidebar-border: var(--edge);
+  --sidebar-ring: var(--brand);
+}
+
+/* 5. Layout constants ----------------------------------------------------- */
+/* Read with Tailwind's custom-property syntax, e.g. h-(--topbar-h). */
+:root {
+  --topbar-h: 58px;
+  --sidebar-w: 210px;
+  --row-h: 50px;
+  --shell-pad-x: 22px;
+  --shell-pad-y: 20px;
+  --shell-gap: 20px;
+  --mobile-topbar-h: 54px;
+  --mobile-tabbar-h: 62px;
+  --tap-min: 44px;
+}
+
+/* 6. Published to Tailwind ------------------------------------------------ */
+@theme {
+  /* The boundary between the compact and full desk views. Tailwind's own `xl`
+     is 1280px; the design system's is 1200. hooks/use-layout.ts reads the same
+     number, so the CSS and the component tree switch together. */
+  --breakpoint-wide: 1200px;
+}
+
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* shadcn slots */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -23,14 +256,10 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -39,87 +268,214 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* surfaces — max two planes per screen, plus sunken for tiles inside cards */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface-card);
+  --color-subtle: var(--surface-subtle);
+  --color-sunken: var(--surface-sunken);
+
+  /* edges */
+  --color-edge: var(--edge);
+  --color-edge-strong: var(--edge-strong);
+  --color-edge-brand: var(--edge-brand);
+
+  /* text */
+  --color-heading: var(--text-heading);
+  --color-body: var(--text-body);
+  --color-faint: var(--text-faint);
+  --color-on-brand: var(--text-on-brand);
+
+  /* brand */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-text: var(--brand-soft-text);
+
+  /* state — the four fixed tones */
+  --color-running-bg: var(--state-running-bg);
+  --color-running-fg: var(--state-running-fg);
+  --color-running-dot: var(--state-running-dot);
+  --color-idle-bg: var(--state-idle-bg);
+  --color-idle-fg: var(--state-idle-fg);
+  --color-idle-dot: var(--state-idle-dot);
+  --color-stopping-bg: var(--state-stopping-bg);
+  --color-stopping-fg: var(--state-stopping-fg);
+  --color-stopping-dot: var(--state-stopping-dot);
+  --color-failed-bg: var(--state-failed-bg);
+  --color-failed-fg: var(--state-failed-fg);
+  --color-failed-dot: var(--state-failed-dot);
+
+  --color-meter-track: var(--meter-track);
+  --color-scrim: var(--scrim);
+  --color-focus-ring: var(--focus-ring);
+
+  /* type families */
+  --font-display: "Bricolage Grotesque Variable", "Manrope Variable", system-ui, sans-serif;
+  --font-sans: "Manrope Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --tracking-display: -0.03em;
+  --tracking-tight: -0.02em;
+  --tracking-eyebrow: 0.12em;
+  --tracking-column: 0.1em;
+
+  /* shape — 1px hairlines everywhere; a card is border plus one soft shadow */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-card: var(--elevation-card);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-overlay: var(--elevation-overlay);
+  --shadow-brand: var(--elevation-brand);
+
+  /* motion — 120ms for tint, 180ms for size and position, one curve.
+     Setting Tailwind's defaults means `transition-colors` is already correct
+     and no component has to restate the timing. */
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.2, 0, 0.2, 1);
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+/* 6b. Motion loops -------------------------------------------------------- */
+/* Only three animations exist in the console and all three signal liveness:
+   the checking status dot pulses, the spinner turns, skeletons shimmer.
+   Nothing bounces, springs, scales in or parallaxes. */
+@keyframes cortex-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@keyframes cortex-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes cortex-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
+/* 7. Composite type styles ------------------------------------------------ */
+/*
+   A type token is a family, weight, size, leading and tracking at once, so it
+   is one class rather than five repeated at every call site.
+   Rule: human-written text is Manrope, machine-reported text is mono.
+
+   These live in the `components` layer, not in `@utility`, and that matters.
+   Each one uses the `font:` shorthand, which resets weight, size, family and
+   leading together. A custom utility would sort *after* Tailwind's own, so
+   `type-body-sm font-semibold` would silently render at 500 — the shorthand
+   would win. In the components layer any utility beats them, so the weight,
+   size and tracking a call site asks for is the weight, size and tracking it
+   gets, and the token supplies the rest.
+*/
+@layer components {
+  .type-display-lg {
+    font: 700 34px/1.1 var(--font-display);
+    letter-spacing: var(--tracking-display);
+  }
+  .type-display {
+    font: 700 27px/1.15 var(--font-display);
+    letter-spacing: var(--tracking-display);
+  }
+  .type-display-sm {
+    font: 700 21px/1.2 var(--font-display);
+    letter-spacing: var(--tracking-display);
+  }
+  .type-title {
+    font: 700 15px/1.35 var(--font-sans);
+  }
+  .type-body-lg {
+    font: 500 14px/1.45 var(--font-sans);
+  }
+  .type-body-md {
+    font: 500 13px/1.5 var(--font-sans);
+  }
+  .type-body-sm {
+    font: 500 12.5px/1.5 var(--font-sans);
+  }
+  .type-caption {
+    font: 500 12px/1.5 var(--font-sans);
+  }
+  .type-eyebrow {
+    font: 500 10.5px/1.2 var(--font-mono);
+    letter-spacing: var(--tracking-eyebrow);
+  }
+  .type-mono-md {
+    font: 400 12px/1.4 var(--font-mono);
+  }
+  .type-mono-sm {
+    font: 400 11px/1.4 var(--font-mono);
+  }
+}
+
+/* 8. Document defaults ---------------------------------------------------- */
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-edge;
   }
+
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-canvas text-body antialiased;
+    font: 500 13px/1.5 var(--font-sans);
   }
+
+  /* Preflight makes buttons inherit their font, but the UA stylesheet also sets
+     text-transform: none on them, which it does not undo. A sortable column head
+     is a button inside an uppercased cell, so without this it would be the one
+     head that renders in sentence case. */
+  button {
+    text-transform: inherit;
+  }
+
+  /* Focus is a brand ring, never the browser outline and never colour alone. */
+  :focus-visible {
+    @apply outline-none ring-[3px] ring-focus-ring border-brand;
+  }
+
+  ::selection {
+    @apply bg-brand-soft text-brand-soft-text;
+  }
+
+  /* Disabled keeps its footprint, so a row's buttons never shift as state
+     changes under it. */
+  :disabled,
+  [aria-disabled="true"] {
+    @apply pointer-events-none opacity-45;
+  }
+
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--muted-foreground) transparent;
+    scrollbar-color: var(--edge-strong) transparent;
   }
   *::-webkit-scrollbar {
     width: 10px;
@@ -129,12 +485,12 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: var(--border);
+    background-color: var(--edge);
     border: 3px solid transparent;
     border-radius: 999px;
     background-clip: content-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: var(--muted-foreground);
+    background-color: var(--edge-strong);
   }
 }

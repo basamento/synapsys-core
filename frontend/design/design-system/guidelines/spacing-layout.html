@@ -1,0 +1,27 @@
+<!-- @dsCard group="Spacing" viewport="700x150" subtitle="Shell padding, sidebar width, row height, tap target" name="Layout metrics" -->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+  <title>Layout metrics</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { padding: 18px 20px; font: var(--text-body-md); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .sw { display: flex; flex-direction: column; gap: 6px; }
+    .chip { height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+    .val { font: var(--text-mono-sm); color: var(--text-muted); }
+    .pane { padding: 16px; border-radius: var(--radius-lg); background: var(--canvas); border: 1px solid var(--border); }
+    
+  </style></head>
+<body>
+<div class="col" style="gap: 8px; font: var(--text-body-md); color: var(--text-body);">
+  <div class="row" style="justify-content: space-between;"><span>Shell padding</span><span class="val">22px x · 20px y</span></div>
+  <div class="row" style="justify-content: space-between;"><span>Column gap</span><span class="val">20px</span></div>
+  <div class="row" style="justify-content: space-between;"><span>Sidebar width / top bar height</span><span class="val">210px / 58px</span></div>
+  <div class="row" style="justify-content: space-between;"><span>Table row height</span><span class="val">50px</span></div>
+  <div class="row" style="justify-content: space-between;"><span>Mobile: page padding · tab bar · min tap</span><span class="val">16px · 62px · 44px</span></div>
+</div>
+</body>
+</html>

@@ -124,6 +124,10 @@ type Worker struct {
 	Framework       WorkerFramework
 	Host            string
 	LastTouch       time.Time
+	// ProcessCount is how many processes are registered to this worker. It is
+	// populated only when a worker is read as part of a listing; heartbeat and
+	// command paths leave it zero because they never need it.
+	ProcessCount int
 }
 
 func (w Worker) Validate() error {

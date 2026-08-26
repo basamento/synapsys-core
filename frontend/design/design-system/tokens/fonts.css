@@ -1,0 +1,7 @@
+/* Synapsys Cortex webfonts.
+   The source repo shipped no font files: it ran on the browser default sans.
+   These three families are the design-system choice, loaded from Google Fonts.
+   Swap these @import lines for local @font-face rules once real files exist. */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");

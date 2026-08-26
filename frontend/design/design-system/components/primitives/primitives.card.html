@@ -1,0 +1,66 @@
+<!-- @dsCard group="Components" viewport="700x290" subtitle="Button variants and sizes, badges, input, meters" name="Primitives" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Primitives</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { padding: 18px 20px; }
+    .grp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .stack { display: flex; flex-direction: column; gap: 14px; }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="../../card-boot.js"></script>
+  <script src="../../_ds_bundle.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { Button, Badge, Input, Progress, Icon, Spinner, Skeleton } = window.dsResolve(["Button", "Badge", "Input", "Progress", "Icon", "Spinner", "Skeleton"]);
+    function Demo() {
+      return (
+        <div className="stack">
+          <div className="grp">
+            <Button>Refresh</Button>
+            <Button variant="outline">Stop</Button>
+            <Button variant="secondary">Logs</Button>
+            <Button variant="destructive">Stop</Button>
+            <Button variant="ghost">Cancel</Button>
+            <Button variant="link">View worker</Button>
+          </div>
+          <div className="grp">
+            <Button size="sm">Start</Button>
+            <Button size="sm" variant="outline">Stop</Button>
+            <Button size="lg">Start process</Button>
+            <Button size="icon" variant="outline" iconLeft={<Icon name="moon" size={15} />} />
+            <Button size="sm" disabled>Start</Button>
+            <Button size="sm" disabled iconLeft={<Spinner size={13} color="currentColor" />}>Starting</Button>
+          </div>
+          <div className="grp">
+            <Badge tone="running">running</Badge>
+            <Badge tone="idle">idle</Badge>
+            <Badge tone="stopping">stopping</Badge>
+            <Badge tone="failed">failed</Badge>
+            <Badge variant="outline" tone="brand">Endless</Badge>
+            <Badge mono>#200</Badge>
+            <Badge tone="running" dot>Core online</Badge>
+          </div>
+          <div className="grp" style={{ gap: 16 }}>
+            <Input placeholder="Search processes" iconLeft={<Icon name="search" size={14} color="var(--text-faint)" />} style={{ width: 230 }} />
+            <div style={{ width: 150, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Progress value={62} />
+              <Progress value={20} tone="running" />
+            </div>
+            <Skeleton width={120} height={14} />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Demo />);
+  </script>
+</body>
+</html>

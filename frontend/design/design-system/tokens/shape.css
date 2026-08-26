@@ -1,0 +1,26 @@
+:root {
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  --border-w: 1px;
+
+  --shadow-card: 0 6px 18px rgba(20, 18, 31, 0.05);
+  --shadow-raised: 0 10px 26px rgba(20, 18, 31, 0.08);
+  --shadow-overlay: 0 18px 44px rgba(20, 18, 31, 0.14);
+  --shadow-brand: 0 6px 18px rgba(95, 61, 242, 0.28);
+
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --ease-out: cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.dark {
+  --shadow-card: 0 12px 32px rgba(0, 0, 0, 0.32);
+  --shadow-raised: 0 16px 38px rgba(0, 0, 0, 0.42);
+  --shadow-overlay: 0 24px 56px rgba(0, 0, 0, 0.55);
+  --shadow-brand: 0 6px 18px rgba(109, 74, 255, 0.32);
+}

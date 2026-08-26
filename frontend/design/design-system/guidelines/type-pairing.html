@@ -1,0 +1,25 @@
+<!-- @dsCard group="Type" viewport="700x150" subtitle="Display title, Manrope meta, mono id — the standard header stack" name="Type pairing in use" -->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+  <title>Type pairing in use</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { padding: 18px 20px; font: var(--text-body-md); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .sw { display: flex; flex-direction: column; gap: 6px; }
+    .chip { height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+    .val { font: var(--text-mono-sm); color: var(--text-muted); }
+    .pane { padding: 16px; border-radius: var(--radius-lg); background: var(--canvas); border: 1px solid var(--border); }
+    
+  </style></head>
+<body>
+<div class="pane" style="display: flex; flex-direction: column; gap: 5px;">
+  <div style="font: var(--text-display); letter-spacing: var(--tracking-display); color: var(--text-heading);">endless process 10</div>
+  <div style="font: var(--text-body-md); color: var(--text-muted);">200 total &middot; 10 on this page &middot; polled 4 seconds ago</div>
+  <div style="font: var(--text-mono-sm); color: var(--text-faint);">springboot-user-1 &middot; DESKTOP-2NJS2Q4</div>
+</div>
+</body>
+</html>

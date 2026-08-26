@@ -1,0 +1,32 @@
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text-body);
+  font: var(--text-body-md);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--brand); text-decoration: none; }
+a:hover { color: var(--brand-hover); text-decoration: underline; text-underline-offset: 2px; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+::selection { background: var(--brand-soft); color: var(--brand-soft-text); }
+
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--border-strong); }
+
+@keyframes cortex-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes cortex-spin { to { transform: rotate(360deg); } }
+@keyframes cortex-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }

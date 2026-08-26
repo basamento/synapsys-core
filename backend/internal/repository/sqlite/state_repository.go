@@ -11,43 +11,44 @@ func (r *NeuronRepository) ListState(
 	ctx context.Context,
 	pagination domain.StatePagination,
 ) (domain.StateSnapshot, error) {
-	workerPage, err := r.pageInfo(ctx, "workers", pagination.Workers)
-	if err != nil {
-		return domain.StateSnapshot{}, fmt.Errorf("count workers: %w", err)
-	}
-	processPage, err := r.pageInfo(ctx, "processes", pagination.Processes)
-	if err != nil {
-		return domain.StateSnapshot{}, fmt.Errorf("count processes: %w", err)
-	}
-	executionPage, err := r.pageInfo(ctx, "executions", pagination.Executions)
-	if err != nil {
-		return domain.StateSnapshot{}, fmt.Errorf("count executions: %w", err)
-	}
-	actionPage, err := r.pageInfo(ctx, "actions", pagination.Actions)
-	if err != nil {
-		return domain.StateSnapshot{}, fmt.Errorf("count actions: %w", err)
+	queries := map[domain.Collection]domain.CollectionQuery{
+		domain.CollectionWorkers:    pagination.Workers,
+		domain.CollectionProcesses:  pagination.Processes,
+		domain.CollectionExecutions: pagination.Executions,
+		domain.CollectionActions:    pagination.Actions,
 	}
 
-	workers, err := r.listWorkers(ctx, workerPage)
+	pages := make(map[domain.Collection]domain.PageInfo, len(queries))
+	for _, collection := range domain.Collections {
+		page, err := r.pageInfo(ctx, collection, queries[collection])
+		if err != nil {
+			return domain.StateSnapshot{}, fmt.Errorf("count %s: %w", collection, err)
+		}
+		pages[collection] = page
+	}
+
+	workers, err := r.listWorkers(ctx, queries[domain.CollectionWorkers], pages[domain.CollectionWorkers])
 	if err != nil {
 		return domain.StateSnapshot{}, fmt.Errorf("list workers: %w", err)
 	}
 
-	processes, err := r.listProcesses(ctx, processPage)
+	// The flat process list and the joined view are the same rows read two
+	// ways, so one query feeds both and their counts cannot disagree.
+	processViews, err := r.listProcessViews(ctx, queries[domain.CollectionProcesses], pages[domain.CollectionProcesses])
 	if err != nil {
 		return domain.StateSnapshot{}, fmt.Errorf("list processes: %w", err)
 	}
-	processViews, err := r.listProcessViews(ctx, processPage)
-	if err != nil {
-		return domain.StateSnapshot{}, fmt.Errorf("list process views: %w", err)
+	processes := make([]domain.Process, 0, len(processViews))
+	for _, view := range processViews {
+		processes = append(processes, view.Process)
 	}
 
-	executions, err := r.listExecutions(ctx, executionPage)
+	executions, err := r.listExecutions(ctx, queries[domain.CollectionExecutions], pages[domain.CollectionExecutions])
 	if err != nil {
 		return domain.StateSnapshot{}, fmt.Errorf("list executions: %w", err)
 	}
 
-	actions, err := r.listActions(ctx, actionPage)
+	actions, err := r.listActions(ctx, queries[domain.CollectionActions], pages[domain.CollectionActions])
 	if err != nil {
 		return domain.StateSnapshot{}, fmt.Errorf("list actions: %w", err)
 	}
@@ -59,35 +60,34 @@ func (r *NeuronRepository) ListState(
 		Actions:      actions,
 		ProcessViews: processViews,
 		Pagination: domain.StatePageInfo{
-			Workers:    workerPage,
-			Processes:  processPage,
-			Executions: executionPage,
-			Actions:    actionPage,
+			Workers:    pages[domain.CollectionWorkers],
+			Processes:  pages[domain.CollectionProcesses],
+			Executions: pages[domain.CollectionExecutions],
+			Actions:    pages[domain.CollectionActions],
 		},
 	}, nil
 }
 
+// pageInfo resolves how many rows the query matches and which page of them is
+// actually reachable. A page beyond the end clamps to the last one, so a filter
+// that shrinks a listing never leaves the operator staring at an empty table.
 func (r *NeuronRepository) pageInfo(
 	ctx context.Context,
-	table string,
-	pagination domain.CollectionPagination,
+	collection domain.Collection,
+	query domain.CollectionQuery,
 ) (domain.PageInfo, error) {
+	statement, args := listingSpecs[collection].selectCount(query)
+
 	var totalItems int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
-	if table == "executions" {
-		// The no-run-id row is an internal process-state baseline created when a
-		// process is first discovered. Public execution history contains runs only.
-		countQuery += " WHERE run_id IS NOT NULL"
-	}
-	if err := r.db.QueryRowContext(ctx, countQuery).Scan(&totalItems); err != nil {
+	if err := r.db.QueryRowContext(ctx, statement, args...).Scan(&totalItems); err != nil {
 		return domain.PageInfo{}, err
 	}
 
-	pageSize := pagination.PageSize
+	pageSize := query.PageSize
 	if pageSize <= 0 {
 		pageSize = 10
 	}
-	page := pagination.Page
+	page := query.Page
 	if page <= 0 {
 		page = 1
 	}
@@ -108,15 +108,17 @@ func (r *NeuronRepository) pageInfo(
 	}, nil
 }
 
-func (r *NeuronRepository) listWorkers(ctx context.Context, page domain.PageInfo) ([]domain.Worker, error) {
-	const query = `
-		SELECT id, name, first_connection, last_connection, framework, host, last_touch
-		FROM workers
-		ORDER BY last_touch DESC, name ASC
-		LIMIT ? OFFSET ?
-	`
+const workerColumns = `w.id, w.name, w.first_connection, w.last_connection, w.framework, w.host, w.last_touch, ` +
+	workerProcessCount
 
-	rows, err := r.db.QueryContext(ctx, query, page.PageSize, pageOffset(page))
+func (r *NeuronRepository) listWorkers(
+	ctx context.Context,
+	query domain.CollectionQuery,
+	page domain.PageInfo,
+) ([]domain.Worker, error) {
+	statement, args := listingSpecs[domain.CollectionWorkers].selectPage(workerColumns, query, page)
+
+	rows, err := r.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +135,7 @@ func (r *NeuronRepository) listWorkers(ctx context.Context, page domain.PageInfo
 			&worker.Framework,
 			&worker.Host,
 			&worker.LastTouch,
+			&worker.ProcessCount,
 		); err != nil {
 			return nil, err
 		}
@@ -141,87 +144,19 @@ func (r *NeuronRepository) listWorkers(ctx context.Context, page domain.PageInfo
 	return workers, rows.Err()
 }
 
-func (r *NeuronRepository) listProcesses(ctx context.Context, page domain.PageInfo) ([]domain.Process, error) {
-	const query = `
-		SELECT id, name, worker_id, type, created_at, ping_timing, desired_token, ack_token, run_id
-		FROM processes
-		ORDER BY created_at DESC, name ASC
-		LIMIT ? OFFSET ?
-	`
+const processViewColumns = `
+	p.id, p.name, p.worker_id, p.type, p.created_at, p.ping_timing, p.desired_token, p.ack_token, p.run_id,
+	w.id, w.name, w.first_connection, w.last_connection, w.framework, w.host, w.last_touch,
+	e.id, e.process_id, e.run_id, e.created_at, e.modified_at, e.current_status, e.desired_state, e.status`
 
-	rows, err := r.db.QueryContext(ctx, query, page.PageSize, pageOffset(page))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func (r *NeuronRepository) listProcessViews(
+	ctx context.Context,
+	query domain.CollectionQuery,
+	page domain.PageInfo,
+) ([]domain.ProcessView, error) {
+	statement, args := listingSpecs[domain.CollectionProcesses].selectPage(processViewColumns, query, page)
 
-	var processes []domain.Process
-	for rows.Next() {
-		var process domain.Process
-		var runID sql.NullInt64
-		if err := rows.Scan(
-			&process.ID,
-			&process.Name,
-			&process.WorkerID,
-			&process.Type,
-			&process.CreatedAt,
-			&process.PingTiming,
-			&process.DesiredToken,
-			&process.AckToken,
-			&runID,
-		); err != nil {
-			return nil, err
-		}
-		if runID.Valid {
-			v := runID.Int64
-			process.RunID = &v
-		}
-		processes = append(processes, process)
-	}
-	return processes, rows.Err()
-}
-
-func (r *NeuronRepository) listProcessViews(ctx context.Context, page domain.PageInfo) ([]domain.ProcessView, error) {
-	const query = `
-		SELECT
-			p.id,
-			p.name,
-			p.worker_id,
-			p.type,
-			p.created_at,
-			p.ping_timing,
-			p.desired_token,
-			p.ack_token,
-			p.run_id,
-			w.id,
-			w.name,
-			w.first_connection,
-			w.last_connection,
-			w.framework,
-			w.host,
-			w.last_touch,
-			e.id,
-			e.process_id,
-			e.run_id,
-			e.created_at,
-			e.modified_at,
-			e.current_status,
-			e.desired_state,
-			e.status
-		FROM processes p
-		INNER JOIN workers w ON w.id = p.worker_id
-		INNER JOIN executions e ON e.id = (
-			SELECT e2.id
-			FROM executions e2
-			WHERE e2.process_id = p.id
-			ORDER BY e2.id DESC
-			LIMIT 1
-		)
-		ORDER BY p.created_at DESC, p.name ASC
-		LIMIT ? OFFSET ?
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, page.PageSize, pageOffset(page))
+	rows, err := r.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -238,16 +173,16 @@ func (r *NeuronRepository) listProcessViews(ctx context.Context, page domain.Pag
 	return results, rows.Err()
 }
 
-func (r *NeuronRepository) listExecutions(ctx context.Context, page domain.PageInfo) ([]domain.Execution, error) {
-	const query = `
-		SELECT id, process_id, run_id, created_at, modified_at, current_status, desired_state, status
-		FROM executions
-		WHERE run_id IS NOT NULL
-		ORDER BY id DESC
-		LIMIT ? OFFSET ?
-	`
+const executionColumns = `e.id, e.process_id, e.run_id, e.created_at, e.modified_at, e.current_status, e.desired_state, e.status`
 
-	rows, err := r.db.QueryContext(ctx, query, page.PageSize, pageOffset(page))
+func (r *NeuronRepository) listExecutions(
+	ctx context.Context,
+	query domain.CollectionQuery,
+	page domain.PageInfo,
+) ([]domain.Execution, error) {
+	statement, args := listingSpecs[domain.CollectionExecutions].selectPage(executionColumns, query, page)
+
+	rows, err := r.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -278,15 +213,16 @@ func (r *NeuronRepository) listExecutions(ctx context.Context, page domain.PageI
 	return executions, rows.Err()
 }
 
-func (r *NeuronRepository) listActions(ctx context.Context, page domain.PageInfo) ([]domain.Action, error) {
-	const query = `
-		SELECT id, execution_id, created_at, status, type
-		FROM actions
-		ORDER BY created_at DESC, id DESC
-		LIMIT ? OFFSET ?
-	`
+const actionColumns = `a.id, a.execution_id, a.created_at, a.status, a.type`
 
-	rows, err := r.db.QueryContext(ctx, query, page.PageSize, pageOffset(page))
+func (r *NeuronRepository) listActions(
+	ctx context.Context,
+	query domain.CollectionQuery,
+	page domain.PageInfo,
+) ([]domain.Action, error) {
+	statement, args := listingSpecs[domain.CollectionActions].selectPage(actionColumns, query, page)
+
+	rows, err := r.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}

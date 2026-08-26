@@ -15,6 +15,7 @@ type WorkerDTO struct {
 	Framework       string    `json:"framework"`
 	Host            string    `json:"host"`
 	LastTouch       time.Time `json:"lastTouch"`
+	ProcessCount    int       `json:"processCount"`
 }
 
 type ProcessDTO struct {
@@ -106,6 +107,7 @@ func toWorkerDTOs(workers []domain.Worker) []WorkerDTO {
 			Framework:       string(worker.Framework),
 			Host:            worker.Host,
 			LastTouch:       worker.LastTouch,
+			ProcessCount:    worker.ProcessCount,
 		})
 	}
 	return dtos

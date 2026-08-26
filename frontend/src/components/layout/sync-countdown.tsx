@@ -1,58 +1,44 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
 import { Progress } from "@/components/ui/progress";
-import { useNeurons } from "../neurons/useNeurons";
+import { POLL_INTERVAL_MS } from "@/state/app-data-context";
+import { useAppData } from "@/state/use-app-data";
 
+const TICK_MS = 100;
+
+/**
+ * How long until the next snapshot. This only *shows* the poll — the provider
+ * runs it, so the console stays current on layouts that have no room for this
+ * meter. The meter running down is the loading indicator, which is why a
+ * refresh never shows skeletons.
+ */
 export function SyncCountdown() {
-  const tickMs = 70;
-  const durationMs = 5000;
+  const { lastUpdatedAt } = useAppData();
 
-  const { refreshNeurons } = useNeurons();
-
-  const [remaining, setRemaining] = useState(durationMs);
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const pendingRef = useRef(false);
-
-  const runRefresh = useCallback(() => {
-    // If a refresh is running, queue exactly one more.
-    if (inFlightRef.current) {
-      pendingRef.current = true;
-      return;
-    }
-
-    inFlightRef.current = (async () => {
-      try {
-        await refreshNeurons();
-      } finally {
-        inFlightRef.current = null;
-
-        // If we missed a cycle while fetching, run once more.
-        if (pendingRef.current) {
-          pendingRef.current = false;
-          runRefresh();
-        }
-      }
-    })();
-  }, [refreshNeurons]);
-
+  // The clock is held in state and advanced by the interval, so rendering stays
+  // pure. Re-rendering ten times a second is confined to this component rather
+  // than reaching the whole tree through context.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    // Optional: fetch immediately on mount
-    runRefresh();
-
-    const id = setInterval(() => {
-      setRemaining((p) => {
-        const next = Math.max(p - tickMs, 0);
-        if (next === 0) {
-          // countdown completed: refresh and reset
-          runRefresh();
-          return durationMs;
-        }
-        return next;
-      });
-    }, tickMs);
-
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
     return () => clearInterval(id);
-  }, [runRefresh]);
+  }, []);
 
-  const progressPct = (remaining / durationMs) * 100;
-  return <Progress className="w-50" value={progressPct} />;
+  const elapsed = lastUpdatedAt ? now - new Date(lastUpdatedAt).getTime() : 0;
+  const remaining = Math.max(0, POLL_INTERVAL_MS - elapsed);
+
+  return (
+    <div className="flex w-31 flex-col gap-1.25">
+      <div className="flex justify-between type-eyebrow text-faint">
+        <span>heartbeat</span>
+        <span className="type-mono-sm text-muted-foreground">
+          {Math.ceil(remaining / 1000)}s
+        </span>
+      </div>
+      <Progress
+        value={(remaining / POLL_INTERVAL_MS) * 100}
+        aria-label="Time until next poll"
+      />
+    </div>
+  );
 }

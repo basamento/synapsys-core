@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"synapsys-core/internal/db"
 	"synapsys-core/internal/handler"
 	"synapsys-core/internal/repository/sqlite"
@@ -40,6 +41,18 @@ func main() {
 	// register static frontend pages
 	web.RegisterEmbeddedStatic(mux)
 	// start the server
-	log.Println("Listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", server.WithCORS(mux)))
+	address := ":" + listenPort()
+	log.Printf("Listening on %s", address)
+	log.Fatal(http.ListenAndServe(address, server.WithCORS(mux)))
 }
+
+// listenPort lets a second instance run alongside the default one, which is
+// what the dev tooling needs when 8080 is already taken.
+func listenPort() string {
+	if port := os.Getenv("PORT"); port != "" {
+		return port
+	}
+	return defaultPort
+}
+
+const defaultPort = "8080"

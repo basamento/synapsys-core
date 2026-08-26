@@ -1,0 +1,26 @@
+<!-- @dsCard group="Type" viewport="700x180" subtitle="Bricolage Grotesque 700, tracked −0.03em — page titles and big numbers" name="Display type" -->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+  <title>Display type</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { padding: 18px 20px; font: var(--text-body-md); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .sw { display: flex; flex-direction: column; gap: 6px; }
+    .chip { height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+    .val { font: var(--text-mono-sm); color: var(--text-muted); }
+    .pane { padding: 16px; border-radius: var(--radius-lg); background: var(--canvas); border: 1px solid var(--border); }
+    
+  </style></head>
+<body>
+<div class="col" style="gap: 12px;">
+  <div style="font: var(--text-display-lg); letter-spacing: var(--tracking-display); color: var(--text-heading);">Processes 200</div>
+  <div style="font: var(--text-display); letter-spacing: var(--tracking-display); color: var(--text-heading);">Command queue</div>
+  <div style="font: var(--text-display-sm); letter-spacing: var(--tracking-display); color: var(--text-heading);">Worker frameworks</div>
+  <div class="val">--text-display-lg 34 · --text-display 27 · --text-display-sm 21</div>
+</div>
+</body>
+</html>

@@ -1,29 +1,54 @@
-import * as React from "react"
-import * as ProgressPrimitive from "@radix-ui/react-progress"
+import * as React from "react";
+import * as ProgressPrimitive from "@radix-ui/react-progress";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
+
+/**
+ * The 4px meter used by the heartbeat countdown, the command queue and the
+ * framework mix. Its tone matches whatever it measures — brand for the core's
+ * own rhythm, a state colour when it measures processes in that state.
+ */
+const indicatorVariants = cva("h-full rounded-full transition-[width] duration-180", {
+  variants: {
+    tone: {
+      brand: "bg-brand",
+      running: "bg-running-dot",
+      idle: "bg-idle-dot",
+      stopping: "bg-stopping-dot",
+      failed: "bg-failed-dot",
+    },
+  },
+  defaultVariants: { tone: "brand" },
+});
+
+export type MeterTone = NonNullable<VariantProps<typeof indicatorVariants>["tone"]>;
 
 function Progress({
   className,
   value,
+  tone,
   ...props
-}: React.ComponentProps<typeof ProgressPrimitive.Root>) {
+}: React.ComponentProps<typeof ProgressPrimitive.Root> & VariantProps<typeof indicatorVariants>) {
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
-      className={cn(
-        "bg-primary/20 relative h-2 w-full overflow-hidden rounded-full",
-        className
-      )}
+      value={value}
+      className={cn("relative h-1 w-full overflow-hidden rounded-full bg-meter-track", className)}
       {...props}
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
-        className="bg-primary h-full w-full flex-1 transition-all"
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+        className={cn(indicatorVariants({ tone }))}
+        style={{ width: `${clamp(value)}%` }}
       />
     </ProgressPrimitive.Root>
-  )
+  );
 }
 
-export { Progress }
+function clamp(value: number | null | undefined) {
+  if (!value || Number.isNaN(value)) return 0;
+  return Math.min(100, Math.max(0, value));
+}
+
+export { Progress };

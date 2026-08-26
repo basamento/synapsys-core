@@ -1,0 +1,552 @@
+<!-- @dsCard group="Cortex Mobile" viewport="390x844" subtitle="Phone console — same five views, cards and a bottom tab bar" name="Cortex Mobile" -->
+<!-- @startingPoint section="Screens" subtitle="Cortex mobile console, click-through" viewport="390x844" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Synapsys Cortex — Mobile</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { margin: 0; background: var(--canvas); }
+    button { font-family: var(--font-ui); }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
+    const iconCache = new Map();
+    function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.9 }) {
+      const [svg, setSvg] = React.useState(() => iconCache.get(name) || null);
+      React.useEffect(() => {
+        if (iconCache.has(name)) { setSvg(iconCache.get(name)); return; }
+        let alive = true;
+        fetch(LUCIDE + name + ".svg").then(r => r.text()).then(t => { iconCache.set(name, t); if (alive) setSvg(t); }).catch(() => {});
+        return () => { alive = false; };
+      }, [name]);
+      const box = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, color, flexShrink: 0 };
+      if (!svg) return <span style={box} />;
+      const s = svg.replace(/width="24"/, 'width="' + size + '"').replace(/height="24"/, 'height="' + size + '"').replace(/stroke-width="2"/, 'stroke-width="' + strokeWidth + '"');
+      return <span style={box} dangerouslySetInnerHTML={{ __html: s }} />;
+    }
+
+    const NAV = [
+      { key: "summary", label: "Summary", icon: "bar-chart-3" },
+      { key: "workers", label: "Workers", icon: "pc-case" },
+      { key: "processes", label: "Processes", icon: "loader-circle" },
+      { key: "executions", label: "Executions", icon: "play-square" },
+      { key: "actions", label: "Actions", icon: "history" },
+    ];
+
+    const STATE = {
+      running: { bg: "var(--state-running-bg)", fg: "var(--state-running-fg)", dot: "var(--chart-running)" },
+      idle: { bg: "var(--state-idle-bg)", fg: "var(--state-idle-fg)", dot: "var(--chart-idle)" },
+      stopping: { bg: "var(--state-stopping-bg)", fg: "var(--state-stopping-fg)", dot: "var(--chart-stopping)" },
+      failed: { bg: "var(--state-failed-bg)", fg: "var(--state-failed-fg)", dot: "var(--chart-failed)" },
+    };
+
+    function Pill({ tone = "neutral", outline, mono, dot, children, style }) {
+      const t = STATE[tone];
+      const bg = outline ? "transparent" : t ? t.bg : "var(--surface-sunken)";
+      const fg = t ? t.fg : outline ? "var(--brand-soft-text)" : "var(--text-body)";
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: bg, color: fg,
+          border: outline ? "1px solid " + (t ? "currentColor" : "var(--border-brand)") : "1px solid transparent",
+          font: mono ? "var(--text-mono-sm)" : "var(--text-caption)", fontWeight: mono ? 400 : 600,
+          padding: outline ? "2px 10px" : "3px 10px", borderRadius: "var(--radius-pill)", whiteSpace: "nowrap", ...style }}>
+          {dot && <span style={{ width: 6, height: 6, borderRadius: 999, background: "currentColor" }} />}
+          {children}
+        </span>
+      );
+    }
+
+    function Btn({ variant = "default", size = "sm", disabled, children, onClick, iconLeft, style }) {
+      const V = {
+        default: { background: "var(--brand)", color: "#fff", border: "1px solid transparent", boxShadow: "var(--shadow-brand)" },
+        outline: { background: "var(--surface-card)", color: "var(--text-body)", border: "1px solid var(--border)" },
+        destructive: { background: "var(--state-failed-bg)", color: "var(--state-failed-fg)", border: "1px solid transparent" },
+        ghost: { background: "transparent", color: "var(--text-body)", border: "1px solid transparent" },
+      }[variant];
+      const S = { sm: { height: 30, padding: "0 13px", radius: "var(--radius-sm)" }, default: { height: 38, padding: "0 17px", radius: "var(--radius-md)" }, lg: { height: 44, padding: "0 18px", radius: "var(--radius-md)" }, icon: { height: 32, width: 32, padding: 0, radius: "var(--radius-sm)" } }[size];
+      return (
+        <button onClick={onClick} disabled={disabled} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+          height: S.height, width: S.width, padding: S.padding, borderRadius: S.radius, font: "var(--text-body-sm)", fontWeight: 600,
+          opacity: disabled ? 0.42 : 1, cursor: disabled ? "not-allowed" : "pointer", whiteSpace: "nowrap",
+          transition: "filter 120ms cubic-bezier(.2,0,.2,1)", ...V, ...style }}>
+          {iconLeft}{children}
+        </button>
+      );
+    }
+
+    function Tile({ label, value, hint, icon, mono, style }) {
+      return (
+        <div style={{ background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+          padding: "11px 13px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, ...style }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+            <span style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>{label}</span>
+            <span style={{ font: mono ? "var(--text-mono-md)" : "var(--text-body-lg)", fontWeight: mono ? 400 : 600, color: "var(--text-heading)", overflowWrap: "anywhere" }}>{value}</span>
+            {hint && <span style={{ font: "var(--text-caption)", color: "var(--text-muted)" }}>{hint}</span>}
+          </div>
+          {icon}
+        </div>
+      );
+    }
+
+    function Meter({ label, value, total, tone = "brand", dot, showBar = true }) {
+      const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+      const c = STATE[tone] ? STATE[tone].dot : "var(--brand)";
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            {dot && <span style={{ width: 8, height: 8, borderRadius: 999, background: c }} />}
+            <span style={{ font: "var(--text-body-md)", color: "var(--text-body)", flexGrow: 1 }}>{label}</span>
+            <span style={{ font: "var(--text-mono-md)", color: "var(--text-heading)" }}>{value}</span>
+          </div>
+          {showBar && (
+            <div style={{ height: 4, background: "var(--chart-track)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ width: pct + "%", height: "100%", background: c, borderRadius: 999, transition: "width 180ms cubic-bezier(.2,0,.2,1)" }} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Donut({ counts, total, size = 104 }) {
+      let at = 0;
+      const stops = [["running", "var(--chart-running)"], ["idle", "var(--chart-idle)"], ["stopping", "var(--chart-stopping)"], ["failed", "var(--chart-failed)"]]
+        .map(([k, c]) => { const from = at; at += ((counts[k] || 0) / (total || 1)) * 100; return c + " " + from + "% " + at + "%"; }).join(", ");
+      const inner = Math.round(size * 0.69);
+      return (
+        <div style={{ width: size, height: size, borderRadius: 999, flexShrink: 0, display: "grid", placeItems: "center", background: total ? "conic-gradient(" + stops + ")" : "var(--chart-track)" }}>
+          <div style={{ width: inner, height: inner, borderRadius: 999, background: "var(--surface-card)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ font: "var(--text-display-sm)", letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>{total}</span>
+            <span style={{ font: "var(--text-eyebrow)", color: "var(--text-faint)" }}>loaded</span>
+          </div>
+        </div>
+      );
+    }
+
+    function Panel({ title, description, aside, children, style, padded = true }) {
+      return (
+        <div style={{ background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-card)", padding: padded ? "18px 20px" : 0, display: "flex", flexDirection: "column", gap: 15, ...style }}>
+          {(title || aside) && (
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {title && <div style={{ font: "var(--text-title)", color: "var(--text-heading)" }}>{title}</div>}
+                {description && <div style={{ font: "var(--text-body-sm)", color: "var(--text-muted)" }}>{description}</div>}
+              </div>
+              {aside}
+            </div>
+          )}
+          {children}
+        </div>
+      );
+    }
+
+    /* ---- fixture data, shaped like the API's ProcessOverview / Worker / Execution / Action ---- */
+    const STATES = ["idle", "running", "stopping", "failed", "idle", "running", "idle", "idle", "running", "idle"];
+    const PROCESSES = STATES.map((s, i) => ({
+      id: i + 1, name: "endless process " + [1, 10, 100, 11, 12, 13, 14, 15, 16, 17][i],
+      workerName: "springboot-user-1", host: "DESKTOP-2NJS2Q4", type: "endless", framework: "springboot",
+      currentState: s, desiredState: s === "failed" ? "running" : s, desiredToken: 4, ackToken: s === "stopping" ? 3 : 4, lastTouch: "18:10:40",
+    }));
+    const WORKERS = [{ id: 1, name: "springboot-user-1", host: "DESKTOP-2NJS2Q4", framework: "springboot",
+      firstConnection: "18:08:55", lastConnection: "18:10:10", lastTouch: "18:10:10", processCount: 200 }];
+    const EXECUTIONS = STATES.map((s, i) => ({ id: 200 - i, processId: 200 - i, runId: 12 - i, status: i % 7 === 3 ? "inactive" : "active",
+      currentStatus: s, desiredState: s === "failed" ? "running" : s, createdAt: "18:08:55", modifiedAt: "18:11:10" }));
+    const ACTIONS = ["create", "heartbeat", "ack", "start", "stop", "heartbeat", "ack", "create", "heartbeat", "ack"]
+      .map((t, i) => ({ id: 200 - i, executionId: 200 - i, type: t, status: i === 4 ? "waiting" : i === 7 ? "failed" : "done", createdAt: "18:08:5" + (9 - (i % 9)) }));
+    const ACTION_ICON = { ack: "check-circle-2", heartbeat: "radio-tower", create: "plus-circle", start: "play", stop: "square" };
+    const ACTION_TONE = { done: "running", waiting: "stopping", failed: "failed" };
+    const COUNTS = PROCESSES.reduce((a, p) => ({ ...a, [p.currentState]: (a[p.currentState] || 0) + 1 }), {});
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+
+    function MobileTopBar({ theme, onToggleTheme, onMenu }) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 54, padding: "0 14px",
+          background: "var(--surface-card)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <span style={{ display: "inline-flex", width: 24, height: 24, flexShrink: 0 }}>
+              <svg width="24" height="24" viewBox="0 0 48 48" role="img" aria-label="Synapsys">
+                <circle cx="24" cy="24" r="22" fill="var(--brand)" />
+                <path d="M24 24 24 9M24 24 36.99 31.5M24 24 11.01 31.5" fill="none" stroke="#FFFFFF" strokeWidth="2.6" strokeLinecap="round" />
+                <circle cx="24" cy="24" r="6" fill="#FFFFFF" />
+                <circle cx="24" cy="9" r="4" fill="var(--teal-500)" />
+                <circle cx="36.99" cy="31.5" r="4" fill="var(--teal-500)" />
+                <circle cx="11.01" cy="31.5" r="4" fill="var(--teal-500)" />
+              </svg>
+            </span>
+            <span style={{ display: "flex", alignItems: "baseline", gap: 7, minWidth: 0 }}>
+              <span style={{ font: "var(--text-display-sm)", fontSize: 16, letterSpacing: "var(--tracking-tight)", color: "var(--text-heading)" }}>Synapsys</span>
+              <span style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>Cortex</span>
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Pill tone="running" dot style={{ padding: "4px 9px" }}>Online</Pill>
+            <span onClick={onToggleTheme} style={{ width: 32, height: 32, display: "grid", placeItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer" }}>
+              <Icon name={theme === "dark" ? "sun" : "moon"} size={15} color="var(--text-muted)" />
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    function TabBar({ active, onSelect }) {
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", height: "var(--mobile-tabbar-h)",
+          background: "var(--surface-card)", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+          {NAV.map(item => {
+            const on = item.key === active;
+            return (
+              <div key={item.key} onClick={() => onSelect(item.key)} style={{ display: "flex", flexDirection: "column", alignItems: "center",
+                justifyContent: "center", gap: 4, minHeight: "var(--tap-min)", cursor: "pointer",
+                color: on ? "var(--brand)" : "var(--text-faint)", font: "var(--text-eyebrow)", fontWeight: on ? 600 : 500 }}>
+                <Icon name={item.icon} size={19} color="currentColor" strokeWidth={on ? 2.1 : 1.8} />
+                {item.label}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function MobileHeader({ title, meta, onFilter, filterCount, searchable = false }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+              <span style={{ font: "var(--text-display-sm)", fontSize: 24, letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>{title}</span>
+              <span style={{ font: "var(--text-body-sm)", color: "var(--text-muted)" }}>{meta}</span>
+            </div>
+            {onFilter && (
+              <span onClick={onFilter} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 13px",
+                background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+                font: "var(--text-body-sm)", fontWeight: 600, color: "var(--text-body)", flexShrink: 0, cursor: "pointer" }}>
+                <Icon name="sliders-horizontal" size={14} color="var(--text-muted)" />
+                {filterCount ? <span style={{ background: "var(--brand-soft)", color: "var(--brand-soft-text)", font: "var(--text-caption)", fontWeight: 700, padding: "1px 6px", borderRadius: "var(--radius-xs)" }}>{filterCount}</span> : "Filter"}
+              </span>
+            )}
+          </div>
+          {searchable && (
+            <div style={{ display: "flex", alignItems: "center", gap: 9, height: 40, padding: "0 13px", background: "var(--surface-card)",
+              border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+              <Icon name="search" size={15} color="var(--text-muted)" strokeWidth={2} />
+              <span style={{ font: "var(--text-body-md)", color: "var(--text-muted)" }}>Search {title.toLowerCase()}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function MobilePager({ page, pageSize, totalItems, onPage }) {
+      const totalPages = Math.ceil(totalItems / pageSize);
+      const first = (page - 1) * pageSize + 1;
+      const last = Math.min(page * pageSize, totalItems);
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 0 2px" }}>
+          <span style={{ font: "var(--text-body-sm)", color: "var(--text-muted)" }}>
+            <span style={{ font: "var(--text-mono-md)", color: "var(--text-heading)" }}>{first}–{last}</span> of <span style={{ font: "var(--text-mono-md)", color: "var(--text-heading)" }}>{totalItems}</span>
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span onClick={() => page > 1 && onPage(page - 1)} style={{ width: 44, height: 40, display: "grid", placeItems: "center",
+              background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", opacity: page > 1 ? 1 : 0.42 }}>
+              <Icon name="chevron-left" size={15} color="var(--text-body)" strokeWidth={2.2} />
+            </span>
+            <span style={{ font: "var(--text-mono-md)", color: "var(--text-muted)", minWidth: 46, textAlign: "center" }}>{page} / {totalPages}</span>
+            <span onClick={() => page < totalPages && onPage(page + 1)} style={{ width: 44, height: 40, display: "grid", placeItems: "center",
+              background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+              <Icon name="chevron-right" size={15} color="var(--text-body)" strokeWidth={2.2} />
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    function EntityCard({ children }) {
+      return (
+        <div style={{ background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-card)", padding: "14px 14px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {children}
+        </div>
+      );
+    }
+
+    const CardHead = ({ title, sub, pills }) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ font: "var(--text-title)", color: "var(--text-heading)" }}>{title}</span>
+          {pills}
+        </div>
+        <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>{sub}</span>
+      </div>
+    );
+
+    const TwoUp = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>{children}</div>;
+
+    /* ------------------------------ mobile screens ------------------------------ */
+
+    function SummaryScreen() {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <MobileHeader title="Summary" meta="Core online · polled 4 seconds ago" />
+          <TwoUp>
+            <Tile label="Workers" value="1" icon={<Icon name="cpu" size={18} color="var(--text-faint)" />} />
+            <Tile label="Processes" value="200" icon={<Icon name="layers-3" size={18} color="var(--text-faint)" />} />
+            <Tile label="Executions" value="200" icon={<Icon name="activity" size={18} color="var(--text-faint)" />} />
+            <Tile label="Actions" value="200" icon={<Icon name="boxes" size={18} color="var(--text-faint)" />} />
+          </TwoUp>
+          <Panel title="Process state" description="States from the loaded page.">
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <Donut counts={COUNTS} total={PROCESSES.length} size={92} />
+              <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", gap: 9 }}>
+                <Meter label="Running" value={COUNTS.running || 0} total={10} tone="running" dot showBar={false} />
+                <Meter label="Idle" value={COUNTS.idle || 0} total={10} tone="idle" dot showBar={false} />
+                <Meter label="Stopping" value={COUNTS.stopping || 0} total={10} tone="stopping" dot showBar={false} />
+                <Meter label="Failed" value={COUNTS.failed || 0} total={10} tone="failed" dot showBar={false} />
+              </div>
+            </div>
+          </Panel>
+          <Panel title="Command queue" description="Waiting for worker acknowledgement.">
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ font: "var(--text-display)", letterSpacing: "var(--tracking-display)", color: "var(--text-heading)" }}>1</span>
+                <span style={{ font: "var(--text-body-md)", color: "var(--text-muted)" }}>pending</span>
+              </div>
+              <Icon name="radio-tower" size={20} color="var(--text-faint)" />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {PROCESSES.slice(0, 3).map(p => {
+                const pending = p.desiredToken > p.ackToken;
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                    padding: "10px 12px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                      <span style={{ font: "var(--text-body-md)", fontWeight: 600, color: "var(--text-heading)" }}>{p.name}</span>
+                      <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>desired {p.desiredToken} · ack {p.ackToken}</span>
+                    </div>
+                    <Pill tone={pending ? "stopping" : "running"}>{pending ? "waiting" : "synced"}</Pill>
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+          <Panel title="Recent actions" description="Latest command history.">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {ACTIONS.slice(0, 4).map(a => (
+                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                  background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                  <span style={{ width: 30, height: 30, borderRadius: "var(--radius-sm)", background: "var(--surface-card)",
+                    border: "1px solid var(--border)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Icon name={ACTION_ICON[a.type]} size={15} color="var(--text-muted)" />
+                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flexGrow: 1 }}>
+                    <span style={{ font: "var(--text-body-md)", fontWeight: 600, color: "var(--text-heading)" }}>{cap(a.type)}</span>
+                    <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>#{a.executionId} · {a.createdAt}</span>
+                  </div>
+                  <Pill tone={ACTION_TONE[a.status]}>{a.status}</Pill>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+      );
+    }
+
+    function ProcessesScreen({ page, setPage, onFilter, onStop }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <MobileHeader searchable title="Processes" meta="200 total · 10 on this page" onFilter={onFilter} filterCount={2} />
+          {PROCESSES.map(p => {
+            const running = p.currentState === "running";
+            const stopping = p.currentState === "stopping";
+            const failed = p.currentState === "failed";
+            return (
+              <EntityCard key={p.id}>
+                <CardHead title={p.name} sub={p.workerName + " · " + p.host}
+                  pills={<><Pill outline>Endless</Pill><Pill tone={p.currentState}>{p.currentState}</Pill></>} />
+                <TwoUp>
+                  <Tile label="Last touch" value={p.lastTouch} mono />
+                  <Tile label="Tokens" value={p.desiredToken + " / " + p.ackToken} mono />
+                </TwoUp>
+                <div style={{ display: "flex", gap: 9 }}>
+                  <Btn size="lg" variant={running || stopping ? "outline" : "default"} disabled={running || stopping} style={{ flex: 1 }}>{failed ? "Retry" : "Start"}</Btn>
+                  <Btn size="lg" variant={running ? "destructive" : "outline"} disabled={!running} style={{ flex: 1 }} onClick={running ? () => onStop(p) : undefined}>Stop</Btn>
+                </div>
+              </EntityCard>
+            );
+          })}
+          <MobilePager page={page} pageSize={10} totalItems={200} onPage={setPage} />
+        </div>
+      );
+    }
+
+    function WorkersScreen({ page, setPage, onFilter }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <MobileHeader searchable title="Workers" meta="1 total · 1 on this page" onFilter={onFilter} filterCount={1} />
+          {WORKERS.map(w => (
+            <EntityCard key={w.id}>
+              <CardHead title={w.name} sub={w.host} pills={<><Pill mono>#{w.id}</Pill><Pill outline>Spring Boot</Pill></>} />
+              <TwoUp>
+                <Tile label="First connection" value={w.firstConnection} mono />
+                <Tile label="Last connection" value={w.lastConnection} mono />
+                <Tile label="Last touch" value={w.lastTouch} mono />
+                <Tile label="Processes" value="200" />
+              </TwoUp>
+              <Btn size="lg" variant="outline" style={{ width: "100%" }} iconLeft={<Icon name="loader-circle" size={15} color="var(--text-muted)" />}>View its processes</Btn>
+            </EntityCard>
+          ))}
+          <MobilePager page={page} pageSize={10} totalItems={1} onPage={setPage} />
+        </div>
+      );
+    }
+
+    function ExecutionsScreen({ page, setPage, onFilter }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <MobileHeader searchable title="Executions" meta="200 total · 10 on this page" onFilter={onFilter} filterCount={2} />
+          {EXECUTIONS.map(e => (
+            <EntityCard key={e.id}>
+              <CardHead title={"Execution #" + e.id} sub={"process #" + e.processId + (e.runId ? " · run " + e.runId : "")}
+                pills={<><Pill tone={e.status === "active" ? "running" : undefined}>{e.status}</Pill><Pill tone={e.currentStatus}>{e.currentStatus}</Pill></>} />
+              <TwoUp>
+                <Tile label="Desired" value={e.desiredState} />
+                <Tile label="Modified" value={e.modifiedAt} mono />
+              </TwoUp>
+            </EntityCard>
+          ))}
+          <MobilePager page={page} pageSize={10} totalItems={200} onPage={setPage} />
+        </div>
+      );
+    }
+
+    function ActionsScreen({ page, setPage, onFilter }) {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <MobileHeader searchable title="Actions" meta="200 total · 10 on this page" onFilter={onFilter} filterCount={5} />
+          {ACTIONS.map(a => (
+            <EntityCard key={a.id}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                <span style={{ width: 34, height: 34, borderRadius: "var(--radius-sm)", background: "var(--surface-subtle)",
+                  border: "1px solid var(--border)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <Icon name={ACTION_ICON[a.type]} size={16} color="var(--text-muted)" />
+                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, flexGrow: 1 }}>
+                  <span style={{ font: "var(--text-title)", color: "var(--text-heading)" }}>Action #{a.id}</span>
+                  <span style={{ font: "var(--text-mono-sm)", color: "var(--text-faint)" }}>{cap(a.type)} · execution #{a.executionId} · {a.createdAt}</span>
+                </div>
+                <Pill tone={ACTION_TONE[a.status]}>{a.status}</Pill>
+              </div>
+            </EntityCard>
+          ))}
+          <MobilePager page={page} pageSize={10} totalItems={200} onPage={setPage} />
+        </div>
+      );
+    }
+
+    function FilterSheet({ onClose }) {
+      const [states, setStates] = React.useState(["idle", "running"]);
+      const toggle = (s) => setStates(v => v.includes(s) ? v.filter(x => x !== s) : [...v, s]);
+      return (
+        <div style={{ position: "absolute", inset: 0, zIndex: 60 }}>
+          <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,12,17,0.5)" }} />
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: "var(--surface-card)",
+            borderTop: "1px solid var(--border)", borderRadius: "var(--radius-xl) var(--radius-xl) 0 0",
+            boxShadow: "var(--shadow-overlay)", padding: "14px 16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ width: 38, height: 4, borderRadius: 999, background: "var(--border-strong)", alignSelf: "center" }} />
+            <div style={{ font: "var(--text-title)", color: "var(--text-heading)" }}>Filter processes</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              <span style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>State</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {["idle", "running", "stopping", "failed"].map(s => {
+                  const on = states.includes(s);
+                  return (
+                    <span key={s} onClick={() => toggle(s)} style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 14px",
+                      borderRadius: "var(--radius-pill)", cursor: "pointer", font: "var(--text-body-md)", fontWeight: 600,
+                      background: on ? STATE[s].bg : "transparent", color: on ? STATE[s].fg : "var(--text-muted)",
+                      border: "1px solid " + (on ? "transparent" : "var(--border)") }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 999, background: STATE[s].dot }} />{s}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              <span style={{ font: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", color: "var(--text-faint)" }}>Page size</span>
+              <div style={{ display: "inline-flex", gap: 3, padding: 3, background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", width: "fit-content" }}>
+                {[10, 25, 50].map((n, i) => (
+                  <span key={n} style={{ padding: "8px 16px", borderRadius: "var(--radius-sm)", font: "var(--text-body-md)", fontWeight: i === 0 ? 700 : 500,
+                    background: i === 0 ? "var(--brand)" : "transparent", color: i === 0 ? "#fff" : "var(--text-muted)" }}>{n}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 9 }}>
+              <Btn size="lg" variant="outline" style={{ flex: 1 }} onClick={onClose}>Reset</Btn>
+              <Btn size="lg" style={{ flex: 2 }} onClick={onClose}>Show {states.length ? states.join(" + ") : "all"}</Btn>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function StopDialog({ process, onClose }) {
+      return (
+        <div style={{ position: "absolute", inset: 0, zIndex: 70, display: "grid", placeItems: "center", padding: 20,
+          background: "rgba(10,12,17,0.5)", backdropFilter: "blur(3px)" }}>
+          <div style={{ width: "100%", background: "var(--surface-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-xl)",
+            boxShadow: "var(--shadow-overlay)", padding: "20px 20px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ font: "var(--text-display-sm)", letterSpacing: "var(--tracking-tight)", color: "var(--text-heading)" }}>Stop {process.name}?</span>
+              <span style={{ font: "var(--text-body-md)", color: "var(--text-muted)" }}>The worker acknowledges within one heartbeat. The process keeps its run id.</span>
+            </div>
+            <div style={{ display: "flex", gap: 9 }}>
+              <Btn size="lg" variant="outline" style={{ flex: 1 }} onClick={onClose}>Cancel</Btn>
+              <Btn size="lg" variant="destructive" style={{ flex: 1 }} onClick={onClose}>Stop</Btn>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [view, setView] = React.useState("processes");
+      const [theme, setTheme] = React.useState("light");
+      const [page, setPage] = React.useState(1);
+      const [sheet, setSheet] = React.useState(false);
+      const [stopping, setStopping] = React.useState(null);
+
+      React.useEffect(() => { document.documentElement.classList.toggle("dark", theme === "dark"); }, [theme]);
+      React.useEffect(() => { setPage(1); }, [view]);
+
+      const p = { page, setPage, onFilter: () => setSheet(true) };
+      const screens = {
+        summary: <SummaryScreen />,
+        workers: <WorkersScreen {...p} />,
+        processes: <ProcessesScreen {...p} onStop={setStopping} />,
+        executions: <ExecutionsScreen {...p} />,
+        actions: <ActionsScreen {...p} />,
+      };
+
+      return (
+        <div style={{ width: 390, height: 844, background: "var(--canvas)", display: "flex", flexDirection: "column",
+          position: "relative", overflow: "hidden", borderRight: "1px solid var(--border)" }}>
+          <MobileTopBar theme={theme} onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")} />
+          <div style={{ flexGrow: 1, minHeight: 0, overflowY: "auto", padding: "16px var(--mobile-pad-x) 24px" }}>{screens[view]}</div>
+          <TabBar active={view} onSelect={setView} />
+          {sheet && <FilterSheet onClose={() => setSheet(false)} />}
+          {stopping && <StopDialog process={stopping} onClose={() => setStopping(null)} />}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+  </script>
+</body>
+</html>

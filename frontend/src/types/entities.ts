@@ -23,6 +23,9 @@ export type Worker = {
   framework: WorkerFramework;
   host: string;
   lastTouch: string;
+  // How many processes are registered to this worker, across every page.
+  // Optional because a core older than this field simply omits it.
+  processCount?: number;
 };
 
 export type Process = {

@@ -1,0 +1,68 @@
+<!-- @dsCard group="Components" viewport="700x430" subtitle="Core status, sync clock, metric tiles, donut, meters, table" name="Monitor" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Monitor</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { padding: 18px 20px; }
+    .grp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .stack { display: flex; flex-direction: column; gap: 14px; }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="../../card-boot.js"></script>
+  <script src="../../_ds_bundle.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { CoreStatusIndicator, SyncCountdown, MetricTile, StateDonut, MeterRow, DataTable, StateBadge, PageHeader, Badge } = window.dsResolve(["CoreStatusIndicator", "SyncCountdown", "MetricTile", "StateDonut", "MeterRow", "DataTable", "StateBadge", "PageHeader", "Badge"]);
+    const rows = [
+      { id: 1, name: "endless process 1", state: "idle", h: true },
+      { id: 2, name: "endless process 10", state: "running" },
+      { id: 3, name: "endless process 100", state: "stopping" },
+    ];
+    function Demo() {
+      return (
+        <div className="stack">
+          <div className="grp" style={{ gap: 18 }}>
+            <CoreStatusIndicator status="online" />
+            <CoreStatusIndicator status="offline" />
+            <CoreStatusIndicator status="checking" />
+            <SyncCountdown percent={62} seconds={4} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+            <MetricTile label="Last touch" value="18:10:40" mono />
+            <MetricTile label="Framework" value="Spring Boot" />
+            <MetricTile label="Processes" value="200" hint="10 active in current page" />
+          </div>
+          <div className="grp" style={{ gap: 22, alignItems: "center" }}>
+            <StateDonut counts={{ running: 2, idle: 6, stopping: 1, failed: 1 }} total={10} size={92} />
+            <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 9 }}>
+              <MeterRow label="Running" value={2} total={10} tone="running" dot showBar={false} />
+              <MeterRow label="Idle" value={6} total={10} tone="idle" dot />
+              <MeterRow label="Failed" value={1} total={10} tone="failed" dot showBar={false} />
+            </div>
+          </div>
+          <DataTable
+            sortKey="name" columns={[
+              { key: "name", header: "Process", sortable: true },
+              { key: "state", header: "State", width: "120px" },
+              { key: "touch", header: "Last touch", width: "120px" },
+            ]}
+            rows={rows.map(r => ({ id: r.id, highlight: r.h, cells: {
+              name: <span style={{ font: "var(--text-body-md)", fontWeight: 600, color: "var(--text-heading)" }}>{r.name}</span>,
+              state: <StateBadge state={r.state} />,
+              touch: <span style={{ font: "var(--text-mono-md)", color: "var(--text-muted)" }}>18:10:40</span>,
+            } }))} />
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Demo />);
+  </script>
+</body>
+</html>

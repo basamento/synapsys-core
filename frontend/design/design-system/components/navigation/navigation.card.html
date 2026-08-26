@@ -1,0 +1,48 @@
+<!-- @dsCard group="Components" viewport="700x420" subtitle="Top bar, side nav, mobile tabs, pagination" name="Navigation" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Navigation</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { padding: 18px 20px; }
+    .grp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .stack { display: flex; flex-direction: column; gap: 14px; }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="../../card-boot.js"></script>
+  <script src="../../_ds_bundle.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { TopBar, SideBar, TabBar, ListingPagination, Breadcrumb } = window.dsResolve(["TopBar", "SideBar", "TabBar", "ListingPagination", "Breadcrumb"]);
+    function Demo() {
+      return (
+        <div className="stack">
+          <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+            <TopBar status="online" syncPercent={62} syncSeconds={4} />
+          </div>
+          <div style={{ display: "flex", gap: 18 }}>
+            <SideBar active="processes" counts={{ workers: 1, processes: 200, executions: 200, actions: 200 }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+              <Breadcrumb items={[{label:"Processes"},{label:"endless process 10"}]} />
+              <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+                <ListingPagination page={1} pageSize={10} totalItems={200} />
+              </div>
+              <div style={{ width: 320, border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+                <TabBar active="summary" />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Demo />);
+  </script>
+</body>
+</html>

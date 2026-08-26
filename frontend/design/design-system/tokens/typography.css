@@ -1,0 +1,28 @@
+:root {
+  --font-display: "Bricolage Grotesque", "Manrope", system-ui, sans-serif;
+  --font-ui: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* display — page titles, big numbers */
+  --text-display-lg: 700 34px/1.1 var(--font-display);
+  --text-display: 700 27px/1.15 var(--font-display);
+  --text-display-sm: 700 21px/1.2 var(--font-display);
+
+  /* ui text */
+  --text-title: 700 15px/1.35 var(--font-ui);
+  --text-body-lg: 500 14px/1.45 var(--font-ui);
+  --text-body-md: 500 13px/1.5 var(--font-ui);
+  --text-body-sm: 500 12.5px/1.5 var(--font-ui);
+  --text-caption: 500 12px/1.5 var(--font-ui);
+
+  /* eyebrow / column heads — mono, tracked out, uppercase */
+  --text-eyebrow: 500 10.5px/1.2 var(--font-mono);
+  --tracking-eyebrow: 0.12em;
+
+  /* mono data — ids, clocks, counts */
+  --text-mono-md: 400 12px/1.4 var(--font-mono);
+  --text-mono-sm: 400 11px/1.4 var(--font-mono);
+
+  --tracking-display: -0.03em;
+  --tracking-tight: -0.02em;
+}

@@ -1,79 +1,70 @@
-import { BarChart3, History, LoaderCircle, PcCase, PlaySquare } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
-import {
-    Sidebar,
-    SidebarContent,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarGroupLabel,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
-    SidebarRail,
-} from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
+import { useAppData } from "@/state/use-app-data";
+import { CommandQueueCard } from "./command-queue-card";
+import { NAV_ITEMS } from "./nav-items";
 
-const navItems = [
-    {
-        title: "Summary",
-        href: "/",
-        icon: BarChart3,
-    },
-    {
-        title: "Workers",
-        href: "/workers",
-        icon: PcCase,
-    },
-    {
-        title: "Processes",
-        href: "/processes",
-        icon: LoaderCircle,
-    },
-    {
-        title: "Executions",
-        href: "/executions",
-        icon: PlaySquare,
-    },
-    {
-        title: "Actions",
-        href: "/actions",
-        icon: History,
-    },
-];
-
+/**
+ * A 210px column standing on the canvas, not floating in a card. The active
+ * row is a brand fill with a violet glow under it — the one place the brand
+ * colour is used as a surface rather than an accent.
+ *
+ * Between 700px and 1200px it collapses to icons, where the count chips would
+ * not fit anyway.
+ */
 export function SideBar() {
-    const { pathname } = useLocation();
+  const { pagination } = useAppData();
 
-    return (
-        <Sidebar
-            collapsible="icon"
-            variant="floating"
-            className="left-4 top-[5.25rem] h-[calc(100svh-6.25rem)] p-0 sm:left-6"
+  return (
+    <nav
+      aria-label="Views"
+      className="flex w-14 shrink-0 flex-col gap-0.75 wide:w-(--sidebar-w)"
+    >
+      <span className="hidden px-3 pt-0.5 pb-2.5 type-eyebrow uppercase text-faint wide:block">Monitor</span>
+
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.href}
+          to={item.href}
+          end={item.href === "/"}
+          title={item.label}
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-2.75 rounded-sm px-3 py-2.25 type-body-lg transition-colors",
+              "justify-center wide:justify-start",
+              isActive
+                ? "bg-brand font-semibold text-on-brand shadow-brand"
+                : "font-medium text-body hover:bg-sunken",
+            )
+          }
         >
-            <SidebarContent>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            {navItems.map((item) => (
-                                <SidebarMenuItem key={item.href}>
-                                    <SidebarMenuButton
-                                        asChild
-                                        isActive={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
-                                        tooltip={item.title}
-                                    >
-                                        <NavLink to={item.href} end={item.href === "/"}>
-                                            <item.icon />
-                                            <span>{item.title}</span>
-                                        </NavLink>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-            </SidebarContent>
-            <SidebarRail />
-        </Sidebar>
-    );
+          {({ isActive }) => (
+            <>
+              <item.icon
+                aria-hidden
+                className={cn("size-4 shrink-0", isActive ? "text-on-brand" : "text-faint")}
+                strokeWidth={isActive ? 2 : 1.9}
+              />
+              <span className="hidden wide:inline">{item.label}</span>
+              {item.countOf && (
+                <span
+                  className={cn(
+                    "ml-auto hidden rounded-xs px-1.75 py-0.25 type-mono-sm wide:inline",
+                    isActive ? "bg-white/20 text-on-brand" : "bg-sunken text-muted-foreground",
+                  )}
+                >
+                  {pagination[item.countOf].totalItems}
+                </span>
+              )}
+            </>
+          )}
+        </NavLink>
+      ))}
+
+      <div className="mt-4 hidden wide:block">
+        <CommandQueueCard />
+      </div>
+    </nav>
+  );
 }

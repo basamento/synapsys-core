@@ -1,29 +1,43 @@
-import { Outlet } from "react-router-dom"
+import { Outlet } from "react-router-dom";
 
-import { ThemeProvider } from "./components/layout/theme-provider"
-import { TopBar } from "./components/layout/top-bar"
-import { SideBar } from "./components/layout/side-bar"
-import { SidebarInset, SidebarProvider } from "./components/ui/sidebar"
+import { ThemeProvider } from "@/components/layout/theme-provider";
+import { TopBar } from "@/components/layout/top-bar";
+import { SideBar } from "@/components/layout/side-bar";
+import { TabBar } from "@/components/layout/tab-bar";
+import { useIsMobile } from "@/hooks/use-layout";
 
-
+/**
+ * The shell every view sits in.
+ *
+ * Desktop: full-bleed top bar, then a sidebar column and a fluid content
+ * column. Mobile: top bar, scrolling content, bottom tab bar. The switch is
+ * one breakpoint — there is no third layout.
+ */
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <div className="flex h-svh flex-col overflow-hidden">
-        <TopBar />
-        <SidebarProvider className="min-h-0 flex-1 overflow-hidden px-4 pb-4 pt-3 sm:px-6">
-          <SideBar />
-          <SidebarInset className="min-h-0 overflow-hidden pl-3 sm:pl-4">
-            <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-xs">
-              <div className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
-                <Outlet />
-              </div>
-            </div>
-          </SidebarInset>
-        </SidebarProvider>
-      </div>
+    <ThemeProvider>
+      <Shell />
     </ThemeProvider>
-  )
+  );
 }
 
-export default App
+function Shell() {
+  const isMobile = useIsMobile();
+
+  return (
+    <div className="flex h-svh flex-col overflow-hidden bg-canvas">
+      <TopBar />
+
+      <div className="flex min-h-0 flex-1 gap-(--shell-gap) overflow-y-auto px-4 py-4 sm:px-(--shell-pad-x) sm:py-(--shell-pad-y)">
+        {!isMobile && <SideBar />}
+        <main className="min-w-0 grow pb-1.5">
+          <Outlet />
+        </main>
+      </div>
+
+      {isMobile && <TabBar />}
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,27 @@
+<!-- @dsCard group="Type" viewport="700x180" subtitle="Manrope 500/600/700 — every label, row and paragraph" name="UI text" -->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+  <title>UI text</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { padding: 18px 20px; font: var(--text-body-md); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .sw { display: flex; flex-direction: column; gap: 6px; }
+    .chip { height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .lbl { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--text-faint); }
+    .val { font: var(--text-mono-sm); color: var(--text-muted); }
+    .pane { padding: 16px; border-radius: var(--radius-lg); background: var(--canvas); border: 1px solid var(--border); }
+    
+  </style></head>
+<body>
+<div class="col" style="gap: 10px;">
+  <div style="font: var(--text-title); color: var(--text-heading);">endless process 10 — title 15/700</div>
+  <div style="font: var(--text-body-lg); color: var(--text-body);">Nav and row names — body lg 14/500</div>
+  <div style="font: var(--text-body-md); color: var(--text-body);">Default UI text and table cells — body md 13/500</div>
+  <div style="font: var(--text-body-sm); color: var(--text-muted);">Meta lines and pagination — body sm 12.5/500</div>
+  <div style="font: var(--text-caption); color: var(--text-muted);">Badges and captions — caption 12/500</div>
+</div>
+</body>
+</html>
