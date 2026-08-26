@@ -5,6 +5,7 @@ import { WorkersPage } from "./pages/workers/workers-page";
 import { ProcessesPage } from "./pages/processes/processes-page";
 import { ExecutionsPage } from "./pages/executions/executions-page";
 import { ActionsPage } from "./pages/actions/actions-page";
+import { SettingsPage } from "./pages/settings/settings-page";
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
       {
         path: "actions",
         element: <ActionsPage />,
+      },
+      {
+        path: "settings",
+        element: <SettingsPage />,
       },
     ],
   },

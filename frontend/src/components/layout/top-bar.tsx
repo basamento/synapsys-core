@@ -1,13 +1,15 @@
 import { BrandLockup } from "@/components/cortex/brand-lockup";
 import { useIsMobile } from "@/hooks/use-layout";
+import { NavLink } from "react-router-dom";
+import { Settings } from "lucide-react";
 import { CoreStatusIndicator } from "./core-status-indicator";
 import { ModeToggle } from "./mode-toggle";
 import { SyncCountdown } from "./sync-countdown";
 
 /**
  * Full-bleed, one hairline at the bottom, no card. Desktop carries the
- * heartbeat meter and an operator avatar; mobile drops both — at 390px the
- * status pill alone answers "is the core up".
+ * heartbeat meter; mobile drops the meter — at 390px the status pill alone
+ * answers "is the core up".
  */
 export function TopBar() {
   const isMobile = useIsMobile();
@@ -22,26 +24,24 @@ export function TopBar() {
           <>
             <SyncCountdown />
             <ModeToggle />
-            <OperatorAvatar />
           </>
         )}
-        {isMobile && <ModeToggle />}
+        {isMobile && (
+          <>
+            <NavLink
+              to="/settings"
+              aria-label="Settings"
+              title="Settings"
+              className={({ isActive }) =>
+                `grid size-8 place-items-center rounded-sm transition-colors ${isActive ? "bg-brand-soft text-brand" : "text-muted-foreground hover:bg-subtle"}`
+              }
+            >
+              <Settings aria-hidden className="size-4" strokeWidth={1.9} />
+            </NavLink>
+            <ModeToggle />
+          </>
+        )}
       </div>
     </header>
-  );
-}
-
-/**
- * The console has no accounts yet, so this is the operator's initials and
- * nothing more — no menu behind it, because there is nothing to put in one.
- */
-function OperatorAvatar() {
-  return (
-    <span
-      aria-hidden
-      className="flex size-8 items-center justify-center rounded-full bg-brand-soft type-caption font-bold text-brand-soft-text"
-    >
-      SU
-    </span>
   );
 }

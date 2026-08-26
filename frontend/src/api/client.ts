@@ -5,6 +5,16 @@ const API_BASE = import.meta.env.DEV
   ? (import.meta.env.VITE_API_BASE ?? "http://localhost:8080")
   : "";
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
 
@@ -13,11 +23,26 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const method = (options.method ?? "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !headers.has("X-CSRF-Token")) {
+    const token = document.cookie
+      .split("; ")
+      .find((cookie) => cookie.startsWith("synapsys_csrf="))
+      ?.slice("synapsys_csrf=".length);
+    if (token) {
+      headers.set("X-CSRF-Token", decodeURIComponent(token));
+    }
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
+
+  if (res.status === 401) {
+    window.dispatchEvent(new Event("synapsys:unauthorized"));
+  }
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API ${res.status}: ${text}`);
+    throw new ApiError(res.status, `API ${res.status}: ${text}`);
   }
 
   if (res.status === 204) {

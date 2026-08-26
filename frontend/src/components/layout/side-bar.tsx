@@ -1,8 +1,10 @@
 import { NavLink } from "react-router-dom";
+import { Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAppData } from "@/state/use-app-data";
 import { CommandQueueCard } from "./command-queue-card";
+import { LogoutButton } from "./logout-button";
 import { NAV_ITEMS } from "./nav-items";
 
 /**
@@ -19,7 +21,7 @@ export function SideBar() {
   return (
     <nav
       aria-label="Views"
-      className="flex w-14 shrink-0 flex-col gap-0.75 wide:w-(--sidebar-w)"
+      className="flex h-full min-h-full w-14 shrink-0 flex-col gap-0.75 wide:w-(--sidebar-w)"
     >
       <span className="hidden px-3 pt-0.5 pb-2.5 type-eyebrow uppercase text-faint wide:block">Monitor</span>
 
@@ -64,6 +66,35 @@ export function SideBar() {
 
       <div className="mt-4 hidden wide:block">
         <CommandQueueCard />
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2.5 pt-4">
+        <NavLink
+          to="/settings"
+          title="Settings"
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-2.75 rounded-sm px-3 py-2.25 type-body-lg transition-colors",
+              "justify-center wide:justify-start",
+              isActive
+                ? "bg-brand font-semibold text-on-brand shadow-brand"
+                : "font-medium text-body hover:bg-sunken",
+            )
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <Settings
+                aria-hidden
+                className={cn("size-4 shrink-0", isActive ? "text-on-brand" : "text-faint")}
+                strokeWidth={isActive ? 2 : 1.9}
+              />
+              <span className="hidden wide:inline">Settings</span>
+            </>
+          )}
+        </NavLink>
+
+        <LogoutButton />
       </div>
     </nav>
   );

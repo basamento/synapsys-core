@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"synapsys-core/internal/auth"
 	"synapsys-core/internal/db"
 	"synapsys-core/internal/handler"
 	"synapsys-core/internal/repository/sqlite"
@@ -23,8 +24,18 @@ func main() {
 	if err := db.RunMigrations(database); err != nil {
 		log.Fatal(err)
 	}
+	authConfig, err := auth.LoadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	authService, err := auth.NewService(database, authConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
 	// create server
 	mux := server.New()
+	authService.Register(mux)
+	authService.RegisterWorkerTokenRoutes(mux, authService.RequireUI)
 	// register health
 	healthService := service.NewHealthService()
 	healthHandler := handler.NewHealthHandler(healthService)
@@ -33,11 +44,11 @@ func main() {
 	neuronRepository := sqlite.NewNeuronRepository(database)
 	neuronService := service.NewNeuronsService(neuronRepository)
 	neuronHandler := handler.NewNeuronHandler(neuronService)
-	server.RegisterNeurons(mux, neuronHandler)
+	server.RegisterNeurons(mux, neuronHandler, authService.RequireUI, authService.RequireWorker)
 	// register app state
 	stateService := service.NewStateService(neuronRepository)
 	stateHandler := handler.NewStateHandler(stateService)
-	server.RegisterState(mux, stateHandler)
+	server.RegisterState(mux, stateHandler, authService.RequireUI)
 	// register static frontend pages
 	web.RegisterEmbeddedStatic(mux)
 	// start the server

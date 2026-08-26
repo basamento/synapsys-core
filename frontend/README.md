@@ -16,7 +16,8 @@ npm run dev
 The console polls `GET /api/state` every five seconds. In development it talks
 to `http://localhost:8080`; point it elsewhere with `VITE_API_BASE` in a
 `.env.local`. In production the core serves the built bundle itself, so requests
-are same-origin.
+are same-origin. The console authenticates through the Core's cookie session;
+the data provider is mounted only after the session has been established.
 
 ```bash
 npm run build   # tsc -b && vite build → dist/

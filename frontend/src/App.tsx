@@ -1,6 +1,5 @@
 import { Outlet } from "react-router-dom";
 
-import { ThemeProvider } from "@/components/layout/theme-provider";
 import { TopBar } from "@/components/layout/top-bar";
 import { SideBar } from "@/components/layout/side-bar";
 import { TabBar } from "@/components/layout/tab-bar";
@@ -14,11 +13,7 @@ import { useIsMobile } from "@/hooks/use-layout";
  * one breakpoint — there is no third layout.
  */
 function App() {
-  return (
-    <ThemeProvider>
-      <Shell />
-    </ThemeProvider>
-  );
+  return <Shell />;
 }
 
 function Shell() {

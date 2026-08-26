@@ -5,16 +5,18 @@ import (
 	"synapsys-core/internal/handler"
 )
 
+type Middleware func(http.Handler) http.Handler
+
 func RegisterHealth(mux *http.ServeMux, h *handler.HealthHandler) {
 	mux.Handle("/api/health", h)
 }
 
-func RegisterNeurons(mux *http.ServeMux, h *handler.NeuronHandler) {
-	mux.HandleFunc("POST /api/v1/workers/heartbeat", h.Sync)
-	mux.HandleFunc("GET /api/neuron", h.ListAll)
-	mux.HandleFunc("PUT /api/processes/{id}/desired-state", h.UpdateDesiredState)
+func RegisterNeurons(mux *http.ServeMux, h *handler.NeuronHandler, requireUI Middleware, requireWorker Middleware) {
+	mux.Handle("POST /api/v1/workers/heartbeat", requireWorker(http.HandlerFunc(h.Sync)))
+	mux.Handle("GET /api/neuron", requireUI(http.HandlerFunc(h.ListAll)))
+	mux.Handle("PUT /api/processes/{id}/desired-state", requireUI(http.HandlerFunc(h.UpdateDesiredState)))
 }
 
-func RegisterState(mux *http.ServeMux, h *handler.StateHandler) {
-	mux.HandleFunc("GET /api/state", h.Get)
+func RegisterState(mux *http.ServeMux, h *handler.StateHandler, requireUI Middleware) {
+	mux.Handle("GET /api/state", requireUI(http.HandlerFunc(h.Get)))
 }
