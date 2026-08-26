@@ -49,6 +49,9 @@ func main() {
 	stateService := service.NewStateService(neuronRepository)
 	stateHandler := handler.NewStateHandler(stateService)
 	server.RegisterState(mux, stateHandler, authService.RequireUI)
+	logService := service.NewLogService(neuronRepository)
+	logHandler := handler.NewLogHandler(logService)
+	server.RegisterLogs(mux, logHandler, authService.RequireUI)
 	// register static frontend pages
 	web.RegisterEmbeddedStatic(mux)
 	// start the server

@@ -51,6 +51,7 @@ type NeuronHeartbeatRequest struct {
 	Host            string
 	PingTiming      int
 	Neurons         []NeuronHeartbeat
+	Logs            []domain.ProcessLog
 }
 
 type UpdateDesiredStateRequest struct {
@@ -111,7 +112,7 @@ func (s *NeuronService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequ
 		observations = append(observations, observation)
 	}
 
-	commands, err := s.repo.SyncHeartbeat(ctx, worker, observations)
+	commands, err := s.repo.SyncHeartbeat(ctx, worker, observations, req.Logs)
 	if err != nil {
 		return NeuronHeartbeatResponse{}, err
 	}

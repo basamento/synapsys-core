@@ -79,6 +79,7 @@ func (r *NeuronRepository) SyncHeartbeat(
 	ctx context.Context,
 	worker domain.Worker,
 	observations []domain.ProcessObservation,
+	logBatches ...[]domain.ProcessLog,
 ) ([]domain.ProcessCommand, error) {
 	if err := worker.Validate(); err != nil {
 		return nil, err
@@ -95,6 +96,11 @@ func (r *NeuronRepository) SyncHeartbeat(
 		return nil, err
 	}
 	if len(observations) == 0 {
+		if len(logBatches) > 0 {
+			if err := insertExecutionLogs(ctx, tx, workerID, logBatches[0]); err != nil {
+				return nil, err
+			}
+		}
 		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
@@ -118,6 +124,11 @@ func (r *NeuronRepository) SyncHeartbeat(
 	if err := completeFinishedExecutions(ctx, tx, workerID, names, worker.LastTouch); err != nil {
 		return nil, err
 	}
+	if len(logBatches) > 0 {
+		if err := insertExecutionLogs(ctx, tx, workerID, logBatches[0]); err != nil {
+			return nil, err
+		}
+	}
 
 	commands, err := listCommands(ctx, tx, workerID, names)
 	if err != nil {
@@ -128,6 +139,66 @@ func (r *NeuronRepository) SyncHeartbeat(
 		return nil, err
 	}
 	return commands, nil
+}
+
+func (r *NeuronRepository) ListExecutionLogs(
+	ctx context.Context,
+	executionID int64,
+	afterSequence int64,
+	limit int,
+) ([]domain.ExecutionLog, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, execution_id, sequence, timestamp, source, level, message
+		FROM execution_logs
+		WHERE execution_id = ? AND sequence > ?
+		ORDER BY sequence ASC
+		LIMIT ?
+	`, executionID, afterSequence, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	logs := make([]domain.ExecutionLog, 0)
+	for rows.Next() {
+		var entry domain.ExecutionLog
+		if err := rows.Scan(
+			&entry.ID,
+			&entry.ExecutionID,
+			&entry.Sequence,
+			&entry.Timestamp,
+			&entry.Source,
+			&entry.Level,
+			&entry.Message,
+		); err != nil {
+			return nil, err
+		}
+		logs = append(logs, entry)
+	}
+	return logs, rows.Err()
+}
+
+func insertExecutionLogs(ctx context.Context, tx *sql.Tx, workerID int64, logs []domain.ProcessLog) error {
+	for _, entry := range logs {
+		result, err := tx.ExecContext(ctx, `
+			INSERT INTO execution_logs (execution_id, sequence, timestamp, source, level, message)
+			SELECT e.id, ?, ?, ?, ?, ?
+			FROM processes p
+			INNER JOIN executions e ON e.process_id = p.id AND e.run_id = ?
+			WHERE p.worker_id = ? AND p.name = ?
+			ON CONFLICT(execution_id, sequence) DO NOTHING
+		`, entry.Sequence, entry.Timestamp, entry.Source, entry.Level, entry.Message,
+			entry.RunID, workerID, entry.ProcessName)
+		if err != nil {
+			return fmt.Errorf("insert log for process %q: %w", entry.ProcessName, err)
+		}
+		if affected, err := result.RowsAffected(); err == nil && affected == 0 {
+			// A duplicate is expected on heartbeat retry. An unknown process/run is
+			// also ignored so stale logs cannot make a healthy heartbeat fail.
+			continue
+		}
+	}
+	return nil
 }
 
 func (r *NeuronRepository) UpdateDesiredCommand(

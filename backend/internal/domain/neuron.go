@@ -182,6 +182,26 @@ type Execution struct {
 	Status        ExecutionStatus
 }
 
+type ProcessLog struct {
+	ProcessName string
+	RunID       int64
+	Sequence    int64
+	Timestamp   time.Time
+	Source      string
+	Level       string
+	Message     string
+}
+
+type ExecutionLog struct {
+	ID          int64
+	ExecutionID int64
+	Sequence    int64
+	Timestamp   time.Time
+	Source      string
+	Level       string
+	Message     string
+}
+
 func (e Execution) Validate() error {
 	if !e.CurrentStatus.Valid() {
 		return fmt.Errorf("invalid execution current status: %q", e.CurrentStatus)

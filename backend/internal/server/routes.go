@@ -20,3 +20,7 @@ func RegisterNeurons(mux *http.ServeMux, h *handler.NeuronHandler, requireUI Mid
 func RegisterState(mux *http.ServeMux, h *handler.StateHandler, requireUI Middleware) {
 	mux.Handle("GET /api/state", requireUI(http.HandlerFunc(h.Get)))
 }
+
+func RegisterLogs(mux *http.ServeMux, h *handler.LogHandler, requireUI Middleware) {
+	mux.Handle("GET /api/executions/{id}/logs", requireUI(http.HandlerFunc(h.ListExecutionLogs)))
+}

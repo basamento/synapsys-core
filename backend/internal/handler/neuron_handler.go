@@ -10,6 +10,7 @@ import (
 	"strings"
 	"synapsys-core/internal/domain"
 	"synapsys-core/internal/service"
+	"time"
 )
 
 type NeuronHandler struct {
@@ -25,6 +26,17 @@ type neuronHeartbeatRequestDTO struct {
 	HeartbeatInterval int             `json:"heartbeatInterval"`
 	Neurons           []neuronInfoDTO `json:"neurons"`
 	Processes         []neuronInfoDTO `json:"processes"`
+	Logs              []processLogDTO `json:"logs"`
+}
+
+type processLogDTO struct {
+	ProcessName string `json:"processName"`
+	RunID       *int64 `json:"runId"`
+	Sequence    *int64 `json:"sequence"`
+	Timestamp   string `json:"timestamp"`
+	Source      string `json:"source"`
+	Level       string `json:"level"`
+	Message     string `json:"message"`
 }
 
 type neuronInfoDTO struct {
@@ -160,6 +172,35 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 		})
 	}
 
+	logs := make([]domain.ProcessLog, 0, len(dto.Logs))
+	for _, entry := range dto.Logs {
+		if strings.TrimSpace(entry.ProcessName) == "" || entry.RunID == nil || *entry.RunID <= 0 ||
+			entry.Sequence == nil || *entry.Sequence <= 0 || strings.TrimSpace(entry.Message) == "" {
+			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log")
+		}
+		timestamp, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
+		if err != nil {
+			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log timestamp")
+		}
+		source := strings.ToLower(strings.TrimSpace(entry.Source))
+		level := strings.ToLower(strings.TrimSpace(entry.Level))
+		if source != "stdout" && source != "stderr" {
+			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log source")
+		}
+		if level != "info" && level != "error" {
+			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log level")
+		}
+		logs = append(logs, domain.ProcessLog{
+			ProcessName: entry.ProcessName,
+			RunID:       *entry.RunID,
+			Sequence:    *entry.Sequence,
+			Timestamp:   timestamp,
+			Source:      source,
+			Level:       level,
+			Message:     entry.Message,
+		})
+	}
+
 	if len(neurons) == 0 && skipped > 0 {
 		return service.NeuronHeartbeatRequest{}, fmt.Errorf("no readable processes in heartbeat")
 	}
@@ -194,6 +235,7 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 		Host:            host,
 		PingTiming:      heartbeatInterval,
 		Neurons:         neurons,
+		Logs:            logs,
 	}, nil
 }
 

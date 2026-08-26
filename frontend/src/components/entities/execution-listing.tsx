@@ -1,4 +1,5 @@
 import { MetricTile } from "@/components/cortex/metric-tile";
+import { Button } from "@/components/ui/button";
 import {
   DesiredStateBadge,
   ExecutionStatusBadge,
@@ -9,6 +10,7 @@ import type { ListingDefinition } from "@/components/listing/listing-definition"
 import { formatClock } from "@/lib/format";
 import type { Execution } from "@/types/entities";
 import { MonoCell, NameCell } from "./name-cell";
+import { Terminal } from "lucide-react";
 
 /** How the core identifies a run, or just the process when none was started. */
 function identityOf(execution: Execution) {
@@ -17,7 +19,8 @@ function identityOf(execution: Execution) {
     : `process #${execution.processId}`;
 }
 
-export const executionListing: ListingDefinition<Execution> = {
+export function executionListing(onLogs: (execution: Execution) => void): ListingDefinition<Execution> {
+  return {
   collection: "executions",
   title: "Executions",
   filterLabel: "Status",
@@ -75,6 +78,18 @@ export const executionListing: ListingDefinition<Execution> = {
       sortKey: "modifiedAt",
       cell: (execution) => <MonoCell>{formatClock(execution.modifiedAt)}</MonoCell>,
     },
+    {
+      key: "logs",
+      header: "Actions",
+      width: "100px",
+      align: "right",
+      cell: (execution) => (
+        <Button size="sm" variant="outline" onClick={() => onLogs(execution)}>
+          <Terminal className="size-3.5" />
+          Logs
+        </Button>
+      ),
+    },
   ],
 
   renderCard: (execution) => (
@@ -93,6 +108,13 @@ export const executionListing: ListingDefinition<Execution> = {
         <MetricTile label="Desired" value={execution.desiredState} />
         <MetricTile label="Modified" value={formatClock(execution.modifiedAt)} mono />
       </EntityCardTiles>
+      <div className="flex">
+        <Button size="lg" variant="outline" className="w-full" onClick={() => onLogs(execution)}>
+          <Terminal className="size-4" />
+          Logs
+        </Button>
+      </div>
     </EntityCard>
   ),
-};
+  };
+}
