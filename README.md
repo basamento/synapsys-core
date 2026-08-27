@@ -14,7 +14,7 @@ ghcr.io/jmarzoli/synapsys-core
 Images are published by the `Publish Docker image` workflow when a version tag
 starting with `v` is pushed. This project is still pre-1.0, so use versions such
 as `v0.1.0`, `v0.1.0-alpha.1`, or `v0.0.5`. Stable version tags also update the
-mutable `latest` tag; prerelease tags such as `v0.1.0-alpha.1` do not.
+mutable `latest` tag.
 
 To publish a release after committing the desired changes:
 
