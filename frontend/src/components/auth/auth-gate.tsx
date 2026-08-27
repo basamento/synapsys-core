@@ -55,7 +55,7 @@ function LoginPage({ initialError }: { initialError: string | null }) {
         <Card>
           <CardHeader className="flex-col gap-1.5 px-5 pt-5">
             <CardTitle className="type-display-sm">Sign in</CardTitle>
-            <CardDescription>Authenticate to close the Cortex console.</CardDescription>
+            <CardDescription>Authenticate to open the Cortex console.</CardDescription>
           </CardHeader>
           <CardBody>
             <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
