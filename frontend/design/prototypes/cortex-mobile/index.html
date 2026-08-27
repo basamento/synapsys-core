@@ -159,6 +159,57 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
       firstConnection: "18:08:55", lastConnection: "18:10:10", lastTouch: "18:10:10", processCount: 200 }];
     const EXECUTIONS = STATES.map((s, i) => ({ id: 200 - i, processId: 200 - i, runId: 12 - i, status: i % 7 === 3 ? "inactive" : "active",
       currentStatus: s, desiredState: s === "failed" ? "running" : s, createdAt: "18:08:55", modifiedAt: "18:11:10" }));
+
+    const LOG_LEVEL_STYLE = {
+      info: { bg: "var(--teal-950)", fg: "var(--teal-500)", label: "info" },
+      warn: { bg: "var(--amber-950)", fg: "var(--amber-500)", label: "warn" },
+      error: { bg: "var(--red-950)", fg: "var(--red-500)", label: "error" },
+      debug: { bg: "var(--ink-800)", fg: "var(--ink-400)", label: "debug" },
+      trace: { bg: null, fg: "var(--ink-500)", label: "" },
+    };
+    function buildLogs(exec) {
+      const host = "DESKTOP-2NJS2Q4";
+      const entries = [
+        { level: "info", message: "Opened log stream for run " + exec.runId + " on worker springboot-user-1 (" + host + ")" },
+        { level: "debug", message: "Handshake accepted · protocol v3 · tls 1.3 · compression off" },
+        { level: "info", message: "Desired token set to \u201c" + exec.desiredState + "\u201d by operator SU" },
+        { level: "debug", message: "Loaded process descriptor for process #" + exec.processId + " · framework spring-boot 3.2.4" },
+        { level: "debug", message: "Thread pool warm · core 4 · max 12 · queue depth 0" },
+        { level: "info", message: "Worker acknowledged desired token \u201c" + exec.desiredState + "\u201d within one heartbeat" },
+        { level: "debug", message: "Heartbeat received · seq 118 · rtt 41ms" },
+        { level: "info", message: "Current state reported: " + exec.currentStatus },
+        { level: "debug", message: "Process metrics sampled · cpu 4% · mem 212MB · gc pauses 0" },
+        { level: "debug", message: "Heartbeat received · seq 119 · rtt 38ms" },
+        { level: "info", message: "No drift between desired and current state" },
+        { level: "warn", message: "Heartbeat interval drifted to 5.4s, above the 5s target" },
+        { level: "debug", message: "Sync cycle complete in 46ms · 200 executions reconciled against core" },
+        { level: "debug", message: "Heartbeat received · seq 120 · rtt 40ms" },
+        { level: "info", message: "Execution context persisted to state store · revision 34" },
+        { level: "debug", message: "Process metrics sampled · cpu 5% · mem 214MB · gc pauses 0" },
+        { level: "debug", message: "Heartbeat received · seq 121 · rtt 39ms" },
+        { level: "warn", message: "Retry budget for token acknowledgement at 2 of 3" },
+      ];
+      if (exec.currentStatus === "failed") {
+        entries.push(
+          { level: "error", message: "Execution failed · token mismatch after 3 retries" },
+          { level: "trace", message: "at TokenReconciler.assertMatch(TokenReconciler.java:118)" },
+          { level: "trace", message: "at ExecutionSupervisor.reconcile(ExecutionSupervisor.java:64)" },
+          { level: "trace", message: "at HeartbeatLoop.tick(HeartbeatLoop.java:212)" },
+          { level: "trace", message: "Caused by: DesiredStateConflict — expected \u201crunning\u201d, worker reported \u201cfailed\u201d" },
+          { level: "info", message: "Execution marked failed · awaiting operator action" },
+        );
+      } else {
+        entries.push(
+          { level: "debug", message: "Heartbeat received · seq 122 · rtt 37ms" },
+          { level: "info", message: "Execution stable · next reconcile in 5s" },
+        );
+      }
+      return entries.map((entry, i) => {
+        const totalSec = 45 + i * 3;
+        const time = "18:" + String(26 + Math.floor(totalSec / 60)).padStart(2, "0") + ":" + String(totalSec % 60).padStart(2, "0");
+        return { line: i + 1, time, level: entry.level, message: entry.message };
+      });
+    }
     const ACTIONS = ["create", "heartbeat", "ack", "start", "stop", "heartbeat", "ack", "create", "heartbeat", "ack"]
       .map((t, i) => ({ id: 200 - i, executionId: 200 - i, type: t, status: i === 4 ? "waiting" : i === 7 ? "failed" : "done", createdAt: "18:08:5" + (9 - (i % 9)) }));
     const ACTION_ICON = { ack: "check-circle-2", heartbeat: "radio-tower", create: "plus-circle", start: "play", stop: "square" };
@@ -407,7 +458,7 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
       );
     }
 
-    function ExecutionsScreen({ page, setPage, onFilter }) {
+    function ExecutionsScreen({ page, setPage, onFilter, onShowLogs }) {
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <MobileHeader searchable title="Executions" meta="200 total · 10 on this page" onFilter={onFilter} filterCount={2} />
@@ -419,6 +470,8 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
                 <Tile label="Desired" value={e.desiredState} />
                 <Tile label="Modified" value={e.modifiedAt} mono />
               </TwoUp>
+              <Btn size="lg" variant="outline" style={{ width: "100%" }} onClick={() => onShowLogs(e)}
+                iconLeft={<Icon name="terminal" size={14} color="var(--text-muted)" strokeWidth={2.1} />}>Logs</Btn>
             </EntityCard>
           ))}
           <MobilePager page={page} pageSize={10} totalItems={200} onPage={setPage} />
@@ -495,6 +548,91 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
       );
     }
 
+    function LogsSheet({ execution, onClose }) {
+      const [copiedLine, setCopiedLine] = React.useState(null);
+      const [copiedAll, setCopiedAll] = React.useState(false);
+      const logs = React.useMemo(() => (execution ? buildLogs(execution) : []), [execution]);
+      if (!execution) return null;
+
+      const fmt = (row) => (row.level === "trace" ? "    " + row.message : "[" + row.time + "] " + LOG_LEVEL_STYLE[row.level].label.toUpperCase().padEnd(5, " ") + " " + row.message);
+      const copyLine = (row) => {
+        navigator.clipboard?.writeText(fmt(row)).catch(() => {});
+        setCopiedLine(row.line);
+        setTimeout(() => setCopiedLine((c) => (c === row.line ? null : c)), 1200);
+      };
+      const copyAll = () => {
+        navigator.clipboard?.writeText(logs.map(fmt).join("\n")).catch(() => {});
+        setCopiedAll(true);
+        setTimeout(() => setCopiedAll(false), 1500);
+      };
+
+      return (
+        <div style={{ position: "absolute", inset: 0, zIndex: 60 }}>
+          <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,12,17,0.5)" }} />
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 64, background: "var(--ink-850)",
+            borderRadius: "var(--radius-xl) var(--radius-xl) 0 0", boxShadow: "0 24px 56px rgba(0,0,0,.55)",
+            display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ width: 38, height: 4, borderRadius: 999, background: "var(--ink-600)", alignSelf: "center", margin: "12px 0 2px" }} />
+
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, padding: "10px 16px 12px",
+              borderBottom: "1px solid var(--ink-700)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "nowrap" }}>
+                  <span style={{ font: "var(--text-title)", color: "#FFFFFF", whiteSpace: "nowrap" }}>Execution #{execution.id}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--teal-950)", color: "var(--teal-500)",
+                    font: "var(--text-caption)", fontWeight: 600, padding: "2px 9px", borderRadius: "var(--radius-pill)", flexShrink: 0 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: "currentColor", animation: "cortex-pulse 1.4s var(--ease-out) infinite" }} />
+                    live
+                  </span>
+                </div>
+                <span style={{ font: "var(--text-mono-sm)", color: "var(--ink-300)" }}>process #{execution.processId} · run {execution.runId}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+                <button onClick={copyAll} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 10px",
+                  borderRadius: "var(--radius-sm)", background: "var(--ink-800)", border: "1px solid var(--ink-700)", color: "var(--ink-100)",
+                  font: "var(--text-body-sm)", fontWeight: 600, cursor: "pointer" }}>
+                  <Icon name={copiedAll ? "check" : "copy"} size={13} color={copiedAll ? "var(--teal-500)" : "var(--ink-300)"} strokeWidth={2.2} />
+                  {copiedAll ? "Copied" : "Copy all"}
+                </button>
+                <button onClick={onClose} style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: "var(--radius-sm)", background: "var(--ink-800)", border: "1px solid var(--ink-700)", cursor: "pointer" }}>
+                  <Icon name="x" size={14} color="var(--ink-300)" strokeWidth={2.2} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ overflowY: "auto", padding: "4px 0 20px" }}>
+              {logs.map((row) => {
+                const lvl = LOG_LEVEL_STYLE[row.level];
+                const trace = row.level === "trace";
+                return (
+                  <div key={row.line} style={{ padding: "7px 16px", borderBottom: "1px solid var(--ink-750)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, font: "var(--text-mono-sm)" }}>
+                      <span style={{ color: "var(--ink-500)", width: 18, textAlign: "right", flexShrink: 0 }}>{row.line}</span>
+                      {lvl.label && (
+                        <span style={{ display: "inline-flex", background: lvl.bg, color: lvl.fg, font: "var(--text-caption)", fontWeight: 600,
+                          padding: "1px 7px", borderRadius: "var(--radius-pill)", flexShrink: 0 }}>{lvl.label}</span>
+                      )}
+                      <span style={{ color: "var(--ink-300)", flexShrink: 0 }}>{trace ? "" : row.time}</span>
+                      <span onClick={() => copyLine(row)} style={{ marginLeft: "auto", width: 24, height: 24, display: "inline-flex",
+                        alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-xs)", flexShrink: 0,
+                        opacity: copiedLine === row.line ? 1 : 0.55 }}>
+                        <Icon name={copiedLine === row.line ? "check" : "copy"} size={12} color={copiedLine === row.line ? "var(--teal-500)" : "var(--ink-300)"} strokeWidth={2.2} />
+                      </span>
+                    </div>
+                    <div style={{ font: "var(--text-mono-sm)", color: trace ? "var(--ink-500)" : "var(--ink-100)", wordBreak: "break-word",
+                      paddingLeft: trace ? 40 : 26, paddingTop: 2 }}>
+                      {trace ? "\u21B3 " : ""}{row.message}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function StopDialog({ process, onClose }) {
       return (
         <div style={{ position: "absolute", inset: 0, zIndex: 70, display: "grid", placeItems: "center", padding: 20,
@@ -520,6 +658,7 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
       const [page, setPage] = React.useState(1);
       const [sheet, setSheet] = React.useState(false);
       const [stopping, setStopping] = React.useState(null);
+      const [logsExecution, setLogsExecution] = React.useState(null);
 
       React.useEffect(() => { document.documentElement.classList.toggle("dark", theme === "dark"); }, [theme]);
       React.useEffect(() => { setPage(1); }, [view]);
@@ -529,7 +668,7 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
         summary: <SummaryScreen />,
         workers: <WorkersScreen {...p} />,
         processes: <ProcessesScreen {...p} onStop={setStopping} />,
-        executions: <ExecutionsScreen {...p} />,
+        executions: <ExecutionsScreen {...p} onShowLogs={setLogsExecution} />,
         actions: <ActionsScreen {...p} />,
       };
 
@@ -541,6 +680,7 @@ const LUCIDE = "https://unpkg.com/lucide-static@0.544.0/icons/";
           <TabBar active={view} onSelect={setView} />
           {sheet && <FilterSheet onClose={() => setSheet(false)} />}
           {stopping && <StopDialog process={stopping} onClose={() => setStopping(null)} />}
+          <LogsSheet execution={logsExecution} onClose={() => setLogsExecution(null)} />
         </div>
       );
     }

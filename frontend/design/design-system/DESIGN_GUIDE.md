@@ -19,7 +19,7 @@ The codebase shipped stock shadcn slate tokens and no brand assets. Colour, type
 - `styles.css` — the one file consumers link. Imports everything below.
 - `tokens/` — `fonts.css`, `colors.css`, `typography.css`, `spacing.css`, `shape.css`, `base.css`
 - `components/primitives/` — Button, Badge, Card + CardHeader, Input, Separator, Progress, Skeleton, Spinner, Icon
-- `components/overlays/` — Dialog, DropdownMenu, Tooltip, Sheet
+- `components/overlays/` — Dialog, DropdownMenu, Tooltip, Sheet, LogsModal
 - `components/navigation/` — TopBar, SideBar, TabBar, ModeToggle, Breadcrumb, Pagination, ListingPagination
 - `components/monitor/` — CoreStatusIndicator, SyncCountdown, StateBadge, MetricTile, PageHeader, DataTable, MeterRow, StateDonut, ListingShell
 - `components/entities/` — ProcessCard, WorkerCard, ExecutionCard, ActionCard (+ `formatters.js`)
@@ -81,6 +81,7 @@ The source defines these components; everything here maps to something real in `
 
 - **Icon** — a wrapper the source gets for free from `lucide-react`; needed here because this system is framework-agnostic.
 - **TabBar** — the source app has no mobile navigation at all. Mobile was part of this brief, so the five views needed a bottom bar.
+- **LogsModal** — the source has no log viewer. Desktop gets a Logs button per Executions row opening a dark terminal-styled modal; mobile gets the same content in a bottom sheet. Both forced dark regardless of theme, built from the system's own base palette.
 - **DataTable** — the source installed `ui/table.tsx` and `@tanstack/react-table` but rendered listings as stacked cards. Desktop listings now use the table, per the brief's licence to improve the shape.
 
 Not built, because the source does not define them: toast, avatar menu, tabs, accordion, command palette, date picker.
