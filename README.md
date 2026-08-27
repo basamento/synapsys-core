@@ -3,6 +3,34 @@
 Synapsys Core serves the Cortex operator console and its control-plane API on
 port `8080`.
 
+## Docker image
+
+The production image is published privately to GitHub Container Registry:
+
+```text
+ghcr.io/jmarzoli/synapsys-core
+```
+
+Images are published by the `Publish Docker image` workflow when a version tag
+starting with `v` is pushed. This project is still pre-1.0, so use versions such
+as `v0.1.0`, `v0.1.0-alpha.1`, or `v0.0.5`. The workflow does not publish a
+mutable `latest` tag.
+
+To publish a release after committing the desired changes:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The GitHub Container Registry package should remain private. Its visibility is
+managed separately from the GitHub repository, so verify the package settings
+after the first publish.
+
+The frontend is compiled and embedded into the Go executable. The final image
+does not contain the Node.js toolchain, Go toolchain, application source, or
+frontend source. Runtime state is stored in the `/app/data` volume.
+
 ## Container authentication
 
 The first enabled startup creates one operator account in the persistent
@@ -15,7 +43,7 @@ docker run -d \
   -e SYNAPSYS_AUTH_USERNAME=admin \
   -e SYNAPSYS_AUTH_PASSWORD='change-me' \
   -v synapsys_data:/app/data \
-  synapsys-core:latest
+  ghcr.io/jmarzoli/synapsys-core:0.1.0
 ```
 
 `SYNAPSYS_AUTH_PASSWORD_FILE` can be used instead of
