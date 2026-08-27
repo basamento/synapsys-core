@@ -16,5 +16,5 @@ export interface LogsModalProps {
   onClose?: () => void;
 }
 
-/** Always renders in the system's dark palette (base --ink-*/--teal/amber/red tokens), independent of the active app theme. */
+/** Always renders in the system's dark palette, independent of the active app theme. */
 export function LogsModal(props: LogsModalProps): JSX.Element | null;
