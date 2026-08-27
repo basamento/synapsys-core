@@ -1,0 +1,23 @@
+services:
+  core:
+    image: ghcr.io/jmarzoli/synapsys-core:${SYNAPSYS_CORE_IMAGE_TAG:-latest}
+    container_name: synapsys-core
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - web
+    env_file:
+      - .env
+    volumes:
+      - synapsys_data:/app/data
+
+networks:
+  web:
+    external: true
+
+volumes:
+  synapsys_data:
+    name: synapsys_data

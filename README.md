@@ -13,8 +13,8 @@ ghcr.io/jmarzoli/synapsys-core
 
 Images are published by the `Publish Docker image` workflow when a version tag
 starting with `v` is pushed. This project is still pre-1.0, so use versions such
-as `v0.1.0`, `v0.1.0-alpha.1`, or `v0.0.5`. The workflow does not publish a
-mutable `latest` tag.
+as `v0.1.0`, `v0.1.0-alpha.1`, or `v0.0.5`. Stable version tags also update the
+mutable `latest` tag; prerelease tags such as `v0.1.0-alpha.1` do not.
 
 To publish a release after committing the desired changes:
 
@@ -78,3 +78,4 @@ Alternatively, sign in to the UI, open **Settings**, and generate a worker
 token. The raw token is shown only once. Core stores only a hash, and tokens
 can be revoked from the same page. Worker requests authenticate with either
 an active generated token or `SYNAPSYS_WORKER_TOKEN`.
+
