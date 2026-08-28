@@ -433,8 +433,12 @@ components:
           description: |
             Console output produced by this worker's processes since the previous
             heartbeat. Optional: a client that does not capture output omits it.
-            Entries whose runId is null are discarded, since they cannot be
-            attached to an execution.
+            An entry Core cannot read is skipped individually and the rest of the
+            heartbeat is applied, exactly as for `processes`: one bad log line never
+            costs the worker its process commands. An entry is unreadable when its
+            `processName` or `message` is blank once trimmed, its `runId` or
+            `sequence` is null or below 1, its `timestamp` is not RFC 3339, or its
+            `source` or `level` is outside its enum. Skips are logged server-side.
           items:
             $ref: '#/components/schemas/ProcessLog'
     ProcessLog:

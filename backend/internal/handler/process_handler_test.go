@@ -223,3 +223,57 @@ func TestLegacyAliasesAreNoLongerAccepted(t *testing.T) {
 		t.Fatal("toSyncServiceRequest accepted a body containing only legacy aliases")
 	}
 }
+
+// A heartbeat carries process commands as well as console output. One unreadable
+// log entry must cost only that entry: rejecting the beat would drop every command
+// on it, and the client requeues and resends the same entry forever.
+func TestToSyncServiceRequestSkipsUnreadableLogsAndKeepsTheBatch(t *testing.T) {
+	runID := int64(7)
+	sequence := int64(1)
+	nextSequence := int64(2)
+	zeroRunID := int64(0)
+	timestamp := "2026-08-28T10:00:00.123456789Z"
+
+	dto := heartbeatRequestDTO{
+		WorkerName:        "my-worker-app",
+		HeartbeatInterval: 5,
+		Processes: []processInfoDTO{
+			{Name: "chatty", Type: "endless", CurrentState: "running", AckToken: &sequence},
+		},
+		Logs: []processLogDTO{
+			{ProcessName: "chatty", RunID: &runID, Sequence: &sequence, Timestamp: timestamp,
+				Source: "stdout", Level: "info", Message: "kept"},
+			// Whitespace only: exactly what a client printing a blank line produces.
+			{ProcessName: "chatty", RunID: &runID, Sequence: &nextSequence, Timestamp: timestamp,
+				Source: "stdout", Level: "info", Message: "   "},
+			{ProcessName: "chatty", RunID: &zeroRunID, Sequence: &nextSequence, Timestamp: timestamp,
+				Source: "stdout", Level: "info", Message: "no run"},
+			{ProcessName: "chatty", RunID: &runID, Sequence: &nextSequence, Timestamp: "not-a-timestamp",
+				Source: "stdout", Level: "info", Message: "bad timestamp"},
+			{ProcessName: "chatty", RunID: &runID, Sequence: &nextSequence, Timestamp: timestamp,
+				Source: "telepathy", Level: "info", Message: "bad source"},
+			{ProcessName: "chatty", RunID: &runID, Sequence: &nextSequence, Timestamp: timestamp,
+				Source: "stdout", Level: "shouting", Message: "bad level"},
+			{ProcessName: "chatty", RunID: &runID, Sequence: &nextSequence, Timestamp: timestamp,
+				Source: "stdout", Level: "info", Message: "also kept"},
+		},
+	}
+
+	req, err := toSyncServiceRequest(dto, "127.0.0.1:8080")
+	if err != nil {
+		t.Fatalf("toSyncServiceRequest returned error: %v", err)
+	}
+	// The process, and therefore the command Core answers with, survives the bad entry.
+	if len(req.Processes) != 1 || req.Processes[0].Name != "chatty" {
+		t.Fatalf("processes = %#v, want the reported process kept", req.Processes)
+	}
+	if req.Processes[0].AckToken != 1 {
+		t.Fatalf("ack token = %d, want 1", req.Processes[0].AckToken)
+	}
+	if len(req.Logs) != 2 {
+		t.Fatalf("logs = %d, want the 2 readable entries", len(req.Logs))
+	}
+	if req.Logs[0].Message != "kept" || req.Logs[1].Message != "also kept" {
+		t.Fatalf("logs = %#v, want the readable entries, in order", req.Logs)
+	}
+}

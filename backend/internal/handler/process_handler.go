@@ -130,6 +130,15 @@ func (h *ProcessHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// %v on a *int64 prints a pointer address, which tells an operator nothing about
+// why an entry was skipped.
+func formatOptionalInt64(value *int64) string {
+	if value == nil {
+		return "null"
+	}
+	return strconv.FormatInt(*value, 10)
+}
+
 func toSyncServiceRequest(dto heartbeatRequestDTO, remoteAddr string) (service.HeartbeatRequest, error) {
 	reported := dto.Processes
 
@@ -168,22 +177,28 @@ func toSyncServiceRequest(dto heartbeatRequestDTO, remoteAddr string) (service.H
 
 	logs := make([]domain.ProcessLog, 0, len(dto.Logs))
 	for _, entry := range dto.Logs {
-		if strings.TrimSpace(entry.ProcessName) == "" || entry.RunID == nil || *entry.RunID <= 0 ||
-			entry.Sequence == nil || *entry.Sequence <= 0 || strings.TrimSpace(entry.Message) == "" {
-			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log")
-		}
-		timestamp, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
-		if err != nil {
-			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log timestamp")
-		}
+		timestamp, timestampErr := time.Parse(time.RFC3339Nano, entry.Timestamp)
 		source := strings.ToLower(strings.TrimSpace(entry.Source))
 		level := strings.ToLower(strings.TrimSpace(entry.Level))
-		if source != "stdout" && source != "stderr" {
-			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log source")
+
+		// Same rule as processes above: one unreadable entry is skipped, never a
+		// reason to reject the batch. A heartbeat carries the worker's commands as
+		// well as its output, so failing the whole beat for one bad log line leaves
+		// the worker deaf to start and stop -- and the client, which requeues the
+		// rejected batch, retries the same line forever.
+		if strings.TrimSpace(entry.ProcessName) == "" || entry.RunID == nil || *entry.RunID <= 0 ||
+			entry.Sequence == nil || *entry.Sequence <= 0 || strings.TrimSpace(entry.Message) == "" ||
+			timestampErr != nil || (source != "stdout" && source != "stderr") ||
+			(level != "info" && level != "error") {
+			// The message itself is never logged: it is user output, and unbounded.
+			log.Printf(
+				"heartbeat: skipping log entry from worker %q (process=%q runId=%s sequence=%s source=%q level=%q timestamp=%q)",
+				dto.WorkerName, entry.ProcessName, formatOptionalInt64(entry.RunID),
+				formatOptionalInt64(entry.Sequence), entry.Source, entry.Level, entry.Timestamp,
+			)
+			continue
 		}
-		if level != "info" && level != "error" {
-			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log level")
-		}
+
 		logs = append(logs, domain.ProcessLog{
 			ProcessName: entry.ProcessName,
 			RunID:       *entry.RunID,
