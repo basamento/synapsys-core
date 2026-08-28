@@ -5,7 +5,7 @@ import (
 	"synapsys-core/internal/domain"
 )
 
-type NeuronRepository interface {
+type ProcessRepository interface {
 	ListAll(ctx context.Context) ([]domain.ProcessView, error)
 	ListState(ctx context.Context, pagination domain.StatePagination) (domain.StateSnapshot, error)
 	SyncHeartbeat(ctx context.Context, worker domain.Worker, observations []domain.ProcessObservation, logs ...[]domain.ProcessLog) ([]domain.ProcessCommand, error)

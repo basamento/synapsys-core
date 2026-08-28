@@ -11,9 +11,9 @@ func RegisterHealth(mux *http.ServeMux, h *handler.HealthHandler) {
 	mux.Handle("/api/health", h)
 }
 
-func RegisterNeurons(mux *http.ServeMux, h *handler.NeuronHandler, requireUI Middleware, requireWorker Middleware) {
+func RegisterProcesses(mux *http.ServeMux, h *handler.ProcessHandler, requireUI Middleware, requireWorker Middleware) {
 	mux.Handle("POST /api/v1/workers/heartbeat", requireWorker(http.HandlerFunc(h.Sync)))
-	mux.Handle("GET /api/neuron", requireUI(http.HandlerFunc(h.ListAll)))
+	mux.Handle("GET /api/processes", requireUI(http.HandlerFunc(h.ListAll)))
 	mux.Handle("PUT /api/processes/{id}/desired-state", requireUI(http.HandlerFunc(h.UpdateDesiredState)))
 }
 

@@ -10,7 +10,7 @@ This package restyles all five views and adds a mobile design (the current app h
 
 **The HTML in `prototypes/` is a design reference, not production code.** It is a self-contained React-in-the-browser prototype whose only job is to show intended look and behaviour precisely. Do not copy it into the app.
 
-The target codebase is the existing `frontend/` app: **React 19 + Vite + TypeScript + Tailwind CSS v4 + shadcn/ui + lucide-react + react-router-dom**. The job is to recreate these designs there, using its established patterns — keep `src/components/ui/*` as the primitive layer, keep the page/router structure, keep `useAppData`/`useNeurons` and the 5s poll. What changes is tokens, layout and the listing shape.
+The target codebase is the existing `frontend/` app: **React 19 + Vite + TypeScript + Tailwind CSS v4 + shadcn/ui + lucide-react + react-router-dom**. The job is to recreate these designs there, using its established patterns — keep `src/components/ui/*` as the primitive layer, keep the page/router structure, keep `useAppData`/`useProcesses` and the 5s poll. What changes is tokens, layout and the listing shape.
 
 The `design-system/` folder is the reference implementation: CSS custom properties that are the source of truth for every value, plus framework-agnostic React components (`.jsx` + `.d.ts` + `.prompt.md`) documenting each component's contract and states. Read the `.jsx` for exact numbers; port the intent into shadcn components rather than dropping these files in.
 
@@ -150,10 +150,10 @@ Shell: 54px top bar → scrolling content (16px padding) → 62px bottom tab bar
 
 ## Interactions and behaviour
 
-- **Poll** — keep the existing 5s cycle (`SyncCountdown` + `useNeurons.refreshNeurons`, one queued refresh max). The meter runs down over 5s; the meta line's "polled Ns ago" follows the same clock.
+- **Poll** — keep the existing 5s cycle (`SyncCountdown` + `useProcesses.refreshProcesses`, one queued refresh max). The meter runs down over 5s; the meta line's "polled Ns ago" follows the same clock.
 - **Theme** — toggle adds/removes `dark` on `<html>`; every token flips, no per-component branching. Persist the choice (the app already has `theme-provider.tsx`).
 - **Nav** — router links as today; changing view resets pagination to page 1.
-- **Commands** — Start/Stop call the existing neuron endpoints. Optimistic feedback: the row's state pill goes `stopping`, both buttons disable until the next poll confirms. On mobile, Stop on a *running* process opens the confirmation first; Start never confirms.
+- **Commands** — Start/Stop call the existing process endpoints. Optimistic feedback: the row's state pill goes `stopping`, both buttons disable until the next poll confirms. On mobile, Stop on a *running* process opens the confirmation first; Start never confirms.
 - **Sorting** — clicking a sortable column head toggles asc/desc and shows the brand ▲/▼ on that column only.
 - **Hover** — rows and cards tint to the subtle surface (120ms); filled buttons brighten ~6%; nav rows tint unless active.
 - **Focus** — brand border + 3px `--focus-ring`; never remove the ring, never rely on colour alone.
@@ -165,7 +165,7 @@ Shell: 54px top bar → scrolling content (16px padding) → 62px bottom tab bar
 
 ## State
 
-Existing: `useAppData` (workers, processOverviews, executions, actions, pagination per entity, status, error, lastUpdatedAt) and `useNeurons` (start/stop/refresh). No new global state.
+Existing: `useAppData` (workers, processOverviews, executions, actions, pagination per entity, status, error, lastUpdatedAt) and `useProcesses` (start/stop/refresh). No new global state.
 
 New local state per view: `sortKey` + `sortDir`; `search` string; `stateFilter: ExecutionState[]`; mobile `sheetOpen: boolean` and `confirmStop: ProcessOverview | null`; app-level `theme: "light" | "dark"`.
 

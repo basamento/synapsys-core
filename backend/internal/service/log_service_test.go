@@ -19,27 +19,27 @@ func TestHeartbeatLogsAreStoredAndDeduplicated(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	repo := sqlite.NewNeuronRepository(database)
-	service := NewNeuronsService(repo)
+	repo := sqlite.NewProcessRepository(database)
+	service := NewProcessService(repo)
 	stateService := NewStateService(repo)
-	base := NeuronHeartbeatRequest{
+	base := HeartbeatRequest{
 		WorkerName: "worker-logs",
 		Framework:  domain.WorkerFrameworkSpringBoot,
 		Host:       "localhost",
 		PingTiming: 1,
-		Neurons: []NeuronHeartbeat{{
+		Processes: []ProcessHeartbeat{{
 			Name: "process-logs", Type: domain.ProcessTypeProgressive,
 			CurrentState: domain.ExecutionStateIdle,
 		}},
 	}
-	if _, err := service.SyncNeurons(t.Context(), base); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), base); err != nil {
 		t.Fatalf("initial sync: %v", err)
 	}
-	views, err := service.ListAllNeurons(t.Context())
-	if err != nil || len(views.Neurons) != 1 {
-		t.Fatalf("list process: %v, views=%d", err, len(views.Neurons))
+	views, err := service.ListAllProcesses(t.Context())
+	if err != nil || len(views.Processes) != 1 {
+		t.Fatalf("list process: %v, views=%d", err, len(views.Processes))
 	}
-	processID := views.Neurons[0].ID
+	processID := views.Processes[0].ID
 	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{
 		ProcessID: processID, DesiredState: domain.ExecutionStateRunning,
 	}); err != nil {
@@ -57,12 +57,12 @@ func TestHeartbeatLogsAreStoredAndDeduplicated(t *testing.T) {
 		Timestamp: time.Now().UTC(), Source: "stdout", Level: "info", Message: "hello from process",
 	}
 	running := base
-	running.Neurons[0].CurrentState = domain.ExecutionStateRunning
+	running.Processes[0].CurrentState = domain.ExecutionStateRunning
 	running.Logs = []domain.ProcessLog{log}
-	if _, err := service.SyncNeurons(t.Context(), running); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), running); err != nil {
 		t.Fatalf("sync logs: %v", err)
 	}
-	if _, err := service.SyncNeurons(t.Context(), running); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), running); err != nil {
 		t.Fatalf("retry logs: %v", err)
 	}
 

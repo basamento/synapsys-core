@@ -40,16 +40,16 @@ func main() {
 	healthService := service.NewHealthService()
 	healthHandler := handler.NewHealthHandler(healthService)
 	server.RegisterHealth(mux, healthHandler)
-	// register neurons
-	neuronRepository := sqlite.NewNeuronRepository(database)
-	neuronService := service.NewNeuronsService(neuronRepository)
-	neuronHandler := handler.NewNeuronHandler(neuronService)
-	server.RegisterNeurons(mux, neuronHandler, authService.RequireUI, authService.RequireWorker)
+	// register processes
+	processRepository := sqlite.NewProcessRepository(database)
+	processService := service.NewProcessService(processRepository)
+	processHandler := handler.NewProcessHandler(processService)
+	server.RegisterProcesses(mux, processHandler, authService.RequireUI, authService.RequireWorker)
 	// register app state
-	stateService := service.NewStateService(neuronRepository)
+	stateService := service.NewStateService(processRepository)
 	stateHandler := handler.NewStateHandler(stateService)
 	server.RegisterState(mux, stateHandler, authService.RequireUI)
-	logService := service.NewLogService(neuronRepository)
+	logService := service.NewLogService(processRepository)
 	logHandler := handler.NewLogHandler(logService)
 	server.RegisterLogs(mux, logHandler, authService.RequireUI)
 	// register static frontend pages

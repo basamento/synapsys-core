@@ -13,17 +13,17 @@ import (
 	"time"
 )
 
-type NeuronHandler struct {
-	service *service.NeuronService
+type ProcessHandler struct {
+	service *service.ProcessService
 }
 
-type neuronHeartbeatRequestDTO struct {
-	WorkerName        string          `json:"workerName"`
-	Framework         string          `json:"framework"`
-	Host              string          `json:"host"`
-	HeartbeatInterval int             `json:"heartbeatInterval"`
-	Processes         []neuronInfoDTO `json:"processes"`
-	Logs              []processLogDTO `json:"logs"`
+type heartbeatRequestDTO struct {
+	WorkerName        string           `json:"workerName"`
+	Framework         string           `json:"framework"`
+	Host              string           `json:"host"`
+	HeartbeatInterval int              `json:"heartbeatInterval"`
+	Processes         []processInfoDTO `json:"processes"`
+	Logs              []processLogDTO  `json:"logs"`
 }
 
 type processLogDTO struct {
@@ -36,7 +36,7 @@ type processLogDTO struct {
 	Message     string `json:"message"`
 }
 
-type neuronInfoDTO struct {
+type processInfoDTO struct {
 	Name         string `json:"name"`
 	CurrentState string `json:"currentState"`
 	DesiredState string `json:"desiredState"` // optional/debug
@@ -48,17 +48,17 @@ type neuronInfoDTO struct {
 }
 
 type heartbeatProcessesResponseDTO struct {
-	Processes []neuronInfoDTO `json:"processes"`
+	Processes []processInfoDTO `json:"processes"`
 }
 
-func NewNeuronHandler(service *service.NeuronService) *NeuronHandler {
-	return &NeuronHandler{service: service}
+func NewProcessHandler(service *service.ProcessService) *ProcessHandler {
+	return &ProcessHandler{service: service}
 }
 
-func (h *NeuronHandler) ListAll(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.service.ListAllNeurons(r.Context())
+func (h *ProcessHandler) ListAll(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.service.ListAllProcesses(r.Context())
 	if err != nil {
-		log.Printf("ListAllNeurons failed: %v", err)
+		log.Printf("ListAllProcesses failed: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -69,10 +69,10 @@ func (h *NeuronHandler) ListAll(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
+func (h *ProcessHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	// parse request body
 	log.Printf("HTTP %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
-	var dto neuronHeartbeatRequestDTO
+	var dto heartbeatRequestDTO
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -84,9 +84,9 @@ func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// call the service
-	response, err := h.service.SyncNeurons(r.Context(), req)
+	response, err := h.service.SyncProcesses(r.Context(), req)
 	if err != nil {
-		log.Printf("SyncNeurons failed: %v", err)
+		log.Printf("SyncProcesses failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -102,7 +102,7 @@ func (h *NeuronHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Request) {
+func (h *ProcessHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Request) {
 	// Processes are addressed by id: names are only unique within a worker.
 	processID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || processID <= 0 {
@@ -130,13 +130,13 @@ func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (service.NeuronHeartbeatRequest, error) {
-	processes := dto.Processes
+func toSyncServiceRequest(dto heartbeatRequestDTO, remoteAddr string) (service.HeartbeatRequest, error) {
+	reported := dto.Processes
 
-	neurons := make([]service.NeuronHeartbeat, 0, len(processes))
+	processes := make([]service.ProcessHeartbeat, 0, len(reported))
 	skipped := 0
 
-	for _, n := range processes {
+	for _, n := range reported {
 		// Normalize to lowercase to support Java enums RUNNING/IDLE/STOPPING etc.
 		cs := domain.ExecutionState(strings.ToLower(n.CurrentState))
 		nt := domain.ProcessType(strings.ToLower(n.Type))
@@ -158,7 +158,7 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 			ack = *n.AckToken
 		}
 
-		neurons = append(neurons, service.NeuronHeartbeat{
+		processes = append(processes, service.ProcessHeartbeat{
 			Name:         n.Name,
 			Type:         nt,
 			CurrentState: cs,
@@ -170,19 +170,19 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 	for _, entry := range dto.Logs {
 		if strings.TrimSpace(entry.ProcessName) == "" || entry.RunID == nil || *entry.RunID <= 0 ||
 			entry.Sequence == nil || *entry.Sequence <= 0 || strings.TrimSpace(entry.Message) == "" {
-			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log")
+			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log")
 		}
 		timestamp, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
 		if err != nil {
-			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log timestamp")
+			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log timestamp")
 		}
 		source := strings.ToLower(strings.TrimSpace(entry.Source))
 		level := strings.ToLower(strings.TrimSpace(entry.Level))
 		if source != "stdout" && source != "stderr" {
-			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log source")
+			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log source")
 		}
 		if level != "info" && level != "error" {
-			return service.NeuronHeartbeatRequest{}, fmt.Errorf("invalid process log level")
+			return service.HeartbeatRequest{}, fmt.Errorf("invalid process log level")
 		}
 		logs = append(logs, domain.ProcessLog{
 			ProcessName: entry.ProcessName,
@@ -195,8 +195,8 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 		})
 	}
 
-	if len(neurons) == 0 && skipped > 0 {
-		return service.NeuronHeartbeatRequest{}, fmt.Errorf("no readable processes in heartbeat")
+	if len(processes) == 0 && skipped > 0 {
+		return service.HeartbeatRequest{}, fmt.Errorf("no readable processes in heartbeat")
 	}
 
 	// A client that does not declare itself is unknown, not Java: defaulting to
@@ -216,16 +216,16 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 
 	heartbeatInterval := dto.HeartbeatInterval
 	if heartbeatInterval <= 0 {
-		return service.NeuronHeartbeatRequest{}, fmt.Errorf("heartbeatInterval must be a positive number of seconds")
+		return service.HeartbeatRequest{}, fmt.Errorf("heartbeatInterval must be a positive number of seconds")
 	}
 
-	return service.NeuronHeartbeatRequest{
-		WorkerName:      dto.WorkerName,
-		Framework:       framework,
-		Host:            host,
-		PingTiming:      heartbeatInterval,
-		Neurons:         neurons,
-		Logs:            logs,
+	return service.HeartbeatRequest{
+		WorkerName: dto.WorkerName,
+		Framework:  framework,
+		Host:       host,
+		PingTiming: heartbeatInterval,
+		Processes:  processes,
+		Logs:       logs,
 	}, nil
 }
 
@@ -234,19 +234,19 @@ func isWorkerHeartbeatPath(path string) bool {
 }
 
 func toHeartbeatProcessesResponse(
-	response service.NeuronHeartbeatResponse,
-	request neuronHeartbeatRequestDTO,
+	response service.HeartbeatResponse,
+	request heartbeatRequestDTO,
 ) heartbeatProcessesResponseDTO {
-	processByName := make(map[string]neuronInfoDTO, len(request.Processes))
+	processByName := make(map[string]processInfoDTO, len(request.Processes))
 	for _, process := range request.Processes {
 		processByName[process.Name] = process
 	}
 
-	processes := make([]neuronInfoDTO, 0, len(response.Neurons))
-	for _, command := range response.Neurons {
+	processes := make([]processInfoDTO, 0, len(response.Processes))
+	for _, command := range response.Processes {
 		observed := processByName[command.Name]
 		desiredToken := command.DesiredToken
-		processes = append(processes, neuronInfoDTO{
+		processes = append(processes, processInfoDTO{
 			Name:         command.Name,
 			Type:         string(command.Type),
 			CurrentState: observed.CurrentState,

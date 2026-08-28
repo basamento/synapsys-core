@@ -68,15 +68,15 @@ type StateResponse struct {
 	Processes        []ProcessDTO       `json:"processes"`
 	Executions       []ExecutionDTO     `json:"executions"`
 	Actions          []ActionDTO        `json:"actions"`
-	ProcessOverviews []NeuronDTO        `json:"processOverviews"`
+	ProcessOverviews []ProcessListItem  `json:"processOverviews"`
 	Pagination       StatePaginationDTO `json:"pagination"`
 }
 
 type StateService struct {
-	repo repository.NeuronRepository
+	repo repository.ProcessRepository
 }
 
-func NewStateService(repo repository.NeuronRepository) *StateService {
+func NewStateService(repo repository.ProcessRepository) *StateService {
 	return &StateService{repo: repo}
 }
 
@@ -162,11 +162,11 @@ func toActionDTOs(actions []domain.Action) []ActionDTO {
 	return dtos
 }
 
-func toProcessOverviewDTOs(views []domain.ProcessView) []NeuronDTO {
+func toProcessOverviewDTOs(views []domain.ProcessView) []ProcessListItem {
 	now := time.Now()
-	dtos := make([]NeuronDTO, 0, len(views))
+	dtos := make([]ProcessListItem, 0, len(views))
 	for _, view := range views {
-		dtos = append(dtos, toNeuronDTO(view, now))
+		dtos = append(dtos, toProcessListItem(view, now))
 	}
 	return dtos
 }

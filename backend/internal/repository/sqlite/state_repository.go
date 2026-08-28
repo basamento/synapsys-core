@@ -7,7 +7,7 @@ import (
 	"synapsys-core/internal/domain"
 )
 
-func (r *NeuronRepository) ListState(
+func (r *ProcessRepository) ListState(
 	ctx context.Context,
 	pagination domain.StatePagination,
 ) (domain.StateSnapshot, error) {
@@ -71,7 +71,7 @@ func (r *NeuronRepository) ListState(
 // pageInfo resolves how many rows the query matches and which page of them is
 // actually reachable. A page beyond the end clamps to the last one, so a filter
 // that shrinks a listing never leaves the operator staring at an empty table.
-func (r *NeuronRepository) pageInfo(
+func (r *ProcessRepository) pageInfo(
 	ctx context.Context,
 	collection domain.Collection,
 	query domain.CollectionQuery,
@@ -111,7 +111,7 @@ func (r *NeuronRepository) pageInfo(
 const workerColumns = `w.id, w.name, w.first_connection, w.last_connection, w.framework, w.host, w.last_touch, ` +
 	workerProcessCount
 
-func (r *NeuronRepository) listWorkers(
+func (r *ProcessRepository) listWorkers(
 	ctx context.Context,
 	query domain.CollectionQuery,
 	page domain.PageInfo,
@@ -149,7 +149,7 @@ const processViewColumns = `
 	w.id, w.name, w.first_connection, w.last_connection, w.framework, w.host, w.last_touch,
 	e.id, e.process_id, e.run_id, e.created_at, e.modified_at, e.current_status, e.desired_state, e.status`
 
-func (r *NeuronRepository) listProcessViews(
+func (r *ProcessRepository) listProcessViews(
 	ctx context.Context,
 	query domain.CollectionQuery,
 	page domain.PageInfo,
@@ -175,7 +175,7 @@ func (r *NeuronRepository) listProcessViews(
 
 const executionColumns = `e.id, e.process_id, e.run_id, e.created_at, e.modified_at, e.current_status, e.desired_state, e.status`
 
-func (r *NeuronRepository) listExecutions(
+func (r *ProcessRepository) listExecutions(
 	ctx context.Context,
 	query domain.CollectionQuery,
 	page domain.PageInfo,
@@ -215,7 +215,7 @@ func (r *NeuronRepository) listExecutions(
 
 const actionColumns = `a.id, a.execution_id, a.created_at, a.status, a.type`
 
-func (r *NeuronRepository) listActions(
+func (r *ProcessRepository) listActions(
 	ctx context.Context,
 	query domain.CollectionQuery,
 	page domain.PageInfo,

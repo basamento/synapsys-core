@@ -19,15 +19,15 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	repo := sqlite.NewNeuronRepository(database)
-	service := NewNeuronsService(repo)
+	repo := sqlite.NewProcessRepository(database)
+	service := NewProcessService(repo)
 	stateService := NewStateService(repo)
-	req := NeuronHeartbeatRequest{
+	req := HeartbeatRequest{
 		WorkerName: "worker-a",
 		Framework:  domain.WorkerFrameworkSpringBoot,
 		Host:       "localhost",
 		PingTiming: 1000,
-		Neurons: []NeuronHeartbeat{
+		Processes: []ProcessHeartbeat{
 			{
 				Name:         "process-a",
 				Type:         domain.ProcessTypeProgressive,
@@ -37,22 +37,22 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 		},
 	}
 
-	initial, err := service.SyncNeurons(t.Context(), req)
+	initial, err := service.SyncProcesses(t.Context(), req)
 	if err != nil {
 		t.Fatalf("initial sync: %v", err)
 	}
-	if got := initial.Neurons[0].DesiredState; got != domain.ExecutionStateIdle {
+	if got := initial.Processes[0].DesiredState; got != domain.ExecutionStateIdle {
 		t.Fatalf("initial desired state = %q, want idle", got)
 	}
 
-	registered, err := service.ListAllNeurons(t.Context())
+	registered, err := service.ListAllProcesses(t.Context())
 	if err != nil {
 		t.Fatalf("list processes after initial sync: %v", err)
 	}
-	if len(registered.Neurons) != 1 {
-		t.Fatalf("registered processes = %d, want 1", len(registered.Neurons))
+	if len(registered.Processes) != 1 {
+		t.Fatalf("registered processes = %d, want 1", len(registered.Processes))
 	}
-	processID := registered.Neurons[0].ID
+	processID := registered.Processes[0].ID
 
 	updated, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{
 		ProcessID:    processID,
@@ -65,41 +65,41 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 		t.Fatal("expected process command to be updated")
 	}
 
-	pending, err := service.SyncNeurons(t.Context(), req)
+	pending, err := service.SyncProcesses(t.Context(), req)
 	if err != nil {
 		t.Fatalf("pending sync: %v", err)
 	}
-	if got := pending.Neurons[0].DesiredState; got != domain.ExecutionStateRunning {
+	if got := pending.Processes[0].DesiredState; got != domain.ExecutionStateRunning {
 		t.Fatalf("pending desired state = %q, want running", got)
 	}
-	if got := pending.Neurons[0].DesiredToken; got != 1 {
+	if got := pending.Processes[0].DesiredToken; got != 1 {
 		t.Fatalf("pending desired token = %d, want 1", got)
 	}
-	if pending.Neurons[0].RunId == nil {
+	if pending.Processes[0].RunId == nil {
 		t.Fatal("expected progressive start command to include a run id")
 	}
 
-	req.Neurons[0].CurrentState = domain.ExecutionStateRunning
-	req.Neurons[0].AckToken = pending.Neurons[0].DesiredToken
-	acked, err := service.SyncNeurons(t.Context(), req)
+	req.Processes[0].CurrentState = domain.ExecutionStateRunning
+	req.Processes[0].AckToken = pending.Processes[0].DesiredToken
+	acked, err := service.SyncProcesses(t.Context(), req)
 	if err != nil {
 		t.Fatalf("acked sync: %v", err)
 	}
-	if got := acked.Neurons[0].DesiredState; got != domain.ExecutionStateIdle {
+	if got := acked.Processes[0].DesiredState; got != domain.ExecutionStateIdle {
 		t.Fatalf("acked desired state = %q, want idle", got)
 	}
-	if acked.Neurons[0].RunId == nil {
+	if acked.Processes[0].RunId == nil {
 		t.Fatal("expected run id to remain while the execution is running")
 	}
 
-	list, err := service.ListAllNeurons(t.Context())
+	list, err := service.ListAllProcesses(t.Context())
 	if err != nil {
 		t.Fatalf("list processes: %v", err)
 	}
-	if len(list.Neurons) != 1 {
-		t.Fatalf("listed processes = %d, want 1", len(list.Neurons))
+	if len(list.Processes) != 1 {
+		t.Fatalf("listed processes = %d, want 1", len(list.Processes))
 	}
-	if got := list.Neurons[0].WorkerName; got != "worker-a" {
+	if got := list.Processes[0].WorkerName; got != "worker-a" {
 		t.Fatalf("worker name = %q, want worker-a", got)
 	}
 
@@ -140,16 +140,16 @@ func TestSameProcessNameOnDifferentWorkers(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	repo := sqlite.NewNeuronRepository(database)
-	service := NewNeuronsService(repo)
+	repo := sqlite.NewProcessRepository(database)
+	service := NewProcessService(repo)
 
-	heartbeat := func(worker string) NeuronHeartbeatRequest {
-		return NeuronHeartbeatRequest{
+	heartbeat := func(worker string) HeartbeatRequest {
+		return HeartbeatRequest{
 			WorkerName: worker,
 			Framework:  domain.WorkerFrameworkSpringBoot,
 			Host:       "localhost",
 			PingTiming: 1000,
-			Neurons: []NeuronHeartbeat{
+			Processes: []ProcessHeartbeat{
 				{
 					Name:         "nightly-report",
 					Type:         domain.ProcessTypeProgressive,
@@ -159,24 +159,24 @@ func TestSameProcessNameOnDifferentWorkers(t *testing.T) {
 		}
 	}
 
-	if _, err := service.SyncNeurons(t.Context(), heartbeat("worker-a")); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat("worker-a")); err != nil {
 		t.Fatalf("sync worker-a: %v", err)
 	}
-	if _, err := service.SyncNeurons(t.Context(), heartbeat("worker-b")); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat("worker-b")); err != nil {
 		t.Fatalf("sync worker-b: %v", err)
 	}
 
-	list, err := service.ListAllNeurons(t.Context())
+	list, err := service.ListAllProcesses(t.Context())
 	if err != nil {
 		t.Fatalf("list processes: %v", err)
 	}
 	// Both workers keep their own process: neither may steal the other's row.
-	if len(list.Neurons) != 2 {
-		t.Fatalf("listed processes = %d, want 2", len(list.Neurons))
+	if len(list.Processes) != 2 {
+		t.Fatalf("listed processes = %d, want 2", len(list.Processes))
 	}
 
 	owners := map[string]bool{}
-	for _, process := range list.Neurons {
+	for _, process := range list.Processes {
 		if process.Name != "nightly-report" {
 			t.Fatalf("process name = %q, want nightly-report", process.Name)
 		}
@@ -197,9 +197,9 @@ func TestWorkerRegistersWithoutProcesses(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	repo := sqlite.NewNeuronRepository(database)
-	service := NewNeuronsService(repo)
-	if _, err := service.SyncNeurons(t.Context(), NeuronHeartbeatRequest{
+	repo := sqlite.NewProcessRepository(database)
+	service := NewProcessService(repo)
+	if _, err := service.SyncProcesses(t.Context(), HeartbeatRequest{
 		WorkerName: "empty-worker",
 		Framework:  domain.WorkerFrameworkUnknown,
 		Host:       "localhost",
@@ -236,7 +236,7 @@ func TestUpdateDesiredStateRejectsFailed(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	service := NewNeuronsService(sqlite.NewNeuronRepository(database))
+	service := NewProcessService(sqlite.NewProcessRepository(database))
 	// "failed" is observed, never commanded.
 	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{
 		ProcessID:    1,
@@ -257,32 +257,32 @@ func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	service := NewNeuronsService(sqlite.NewNeuronRepository(database))
+	service := NewProcessService(sqlite.NewProcessRepository(database))
 
 	// Two progressive processes on one worker, reported in a single heartbeat.
-	heartbeat := func(alphaState domain.ExecutionState, alphaAck int64) NeuronHeartbeatRequest {
-		return NeuronHeartbeatRequest{
+	heartbeat := func(alphaState domain.ExecutionState, alphaAck int64) HeartbeatRequest {
+		return HeartbeatRequest{
 			WorkerName: "worker-a",
 			Framework:  domain.WorkerFrameworkSpringBoot,
 			Host:       "localhost",
 			PingTiming: 1000,
-			Neurons: []NeuronHeartbeat{
+			Processes: []ProcessHeartbeat{
 				{Name: "alpha", Type: domain.ProcessTypeProgressive, CurrentState: alphaState, AckToken: alphaAck},
 				{Name: "beta", Type: domain.ProcessTypeProgressive, CurrentState: domain.ExecutionStateIdle, AckToken: 0},
 			},
 		}
 	}
 
-	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 0)); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateIdle, 0)); err != nil {
 		t.Fatalf("initial sync: %v", err)
 	}
 
-	registered, err := service.ListAllNeurons(t.Context())
+	registered, err := service.ListAllProcesses(t.Context())
 	if err != nil {
 		t.Fatalf("list processes: %v", err)
 	}
 	idByName := map[string]int64{}
-	for _, process := range registered.Neurons {
+	for _, process := range registered.Processes {
 		idByName[process.Name] = process.ID
 	}
 
@@ -299,7 +299,7 @@ func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
 		}
 	}
 
-	pending, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 0))
+	pending, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateIdle, 0))
 	if err != nil {
 		t.Fatalf("pending sync: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
 	}
 
 	// alpha acks its start; beta's start is still in flight.
-	acked, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateRunning, 1))
+	acked, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateRunning, 1))
 	if err != nil {
 		t.Fatalf("acked sync: %v", err)
 	}
@@ -340,38 +340,38 @@ func TestProgressiveRunsAreRetainedAsExecutionHistory(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	repo := sqlite.NewNeuronRepository(database)
-	service := NewNeuronsService(repo)
+	repo := sqlite.NewProcessRepository(database)
+	service := NewProcessService(repo)
 	stateService := NewStateService(repo)
-	heartbeat := func(state domain.ExecutionState, ack int64) NeuronHeartbeatRequest {
-		return NeuronHeartbeatRequest{
+	heartbeat := func(state domain.ExecutionState, ack int64) HeartbeatRequest {
+		return HeartbeatRequest{
 			WorkerName: "worker-a",
 			Framework:  domain.WorkerFrameworkSpringBoot,
 			Host:       "localhost",
 			PingTiming: 5,
-			Neurons: []NeuronHeartbeat{{
+			Processes: []ProcessHeartbeat{{
 				Name: "import", Type: domain.ProcessTypeProgressive,
 				CurrentState: state, AckToken: ack,
 			}},
 		}
 	}
 
-	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 0)); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateIdle, 0)); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	registered, err := service.ListAllNeurons(t.Context())
+	registered, err := service.ListAllProcesses(t.Context())
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	processID := registered.Neurons[0].ID
+	processID := registered.Processes[0].ID
 
 	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{ProcessID: processID, DesiredState: domain.ExecutionStateRunning}); err != nil {
 		t.Fatalf("first start: %v", err)
 	}
-	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateRunning, 1)); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateRunning, 1)); err != nil {
 		t.Fatalf("ack first start: %v", err)
 	}
-	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 1)); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateIdle, 1)); err != nil {
 		t.Fatalf("finish first run: %v", err)
 	}
 	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{ProcessID: processID, DesiredState: domain.ExecutionStateRunning}); err != nil {
@@ -398,15 +398,15 @@ func TestProgressiveRunsAreRetainedAsExecutionHistory(t *testing.T) {
 	}
 }
 
-func commandByName(t *testing.T, response NeuronHeartbeatResponse, name string) NeuronCommand {
+func commandByName(t *testing.T, response HeartbeatResponse, name string) ProcessCommand {
 	t.Helper()
-	for _, command := range response.Neurons {
+	for _, command := range response.Processes {
 		if command.Name == name {
 			return command
 		}
 	}
 	t.Fatalf("no command returned for process %q", name)
-	return NeuronCommand{}
+	return ProcessCommand{}
 }
 
 func TestCompletedCommandResolvesActionWithoutDuplicateAck(t *testing.T) {
@@ -420,39 +420,39 @@ func TestCompletedCommandResolvesActionWithoutDuplicateAck(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	repo := sqlite.NewNeuronRepository(database)
-	service := NewNeuronsService(repo)
+	repo := sqlite.NewProcessRepository(database)
+	service := NewProcessService(repo)
 	stateService := NewStateService(repo)
 
-	heartbeat := func(state domain.ExecutionState, ack int64) NeuronHeartbeatRequest {
-		return NeuronHeartbeatRequest{
+	heartbeat := func(state domain.ExecutionState, ack int64) HeartbeatRequest {
+		return HeartbeatRequest{
 			WorkerName: "worker-a",
 			Framework:  domain.WorkerFrameworkSpringBoot,
 			Host:       "localhost",
 			PingTiming: 1000,
-			Neurons: []NeuronHeartbeat{
+			Processes: []ProcessHeartbeat{
 				{Name: "tailer", Type: domain.ProcessTypeEndless, CurrentState: state, AckToken: ack},
 			},
 		}
 	}
 
-	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateRunning, 0)); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateRunning, 0)); err != nil {
 		t.Fatalf("initial sync: %v", err)
 	}
-	registered, err := service.ListAllNeurons(t.Context())
+	registered, err := service.ListAllProcesses(t.Context())
 	if err != nil {
 		t.Fatalf("list processes: %v", err)
 	}
 
 	if _, err := service.UpdateDesiredState(t.Context(), UpdateDesiredStateRequest{
-		ProcessID:    registered.Neurons[0].ID,
+		ProcessID:    registered.Processes[0].ID,
 		DesiredState: domain.ExecutionStateStopping,
 	}); err != nil {
 		t.Fatalf("stop command: %v", err)
 	}
 
 	// Worker acks and reports it has stopped, completing the command.
-	if _, err := service.SyncNeurons(t.Context(), heartbeat(domain.ExecutionStateIdle, 1)); err != nil {
+	if _, err := service.SyncProcesses(t.Context(), heartbeat(domain.ExecutionStateIdle, 1)); err != nil {
 		t.Fatalf("ack sync: %v", err)
 	}
 

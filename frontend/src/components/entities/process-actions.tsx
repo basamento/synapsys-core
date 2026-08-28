@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { startNeuron, stopNeuron } from "@/api/neurons";
+import { startProcess, stopProcess } from "@/api/processes";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -74,7 +74,7 @@ export function ProcessActions({
     setSent({ command, atToken: process.desiredToken });
 
     try {
-      await (command === "start" ? startNeuron(process) : stopNeuron(process));
+      await (command === "start" ? startProcess(process) : stopProcess(process));
       // Pull the new state now rather than waiting out the rest of the poll.
       await refreshAppData();
     } catch {

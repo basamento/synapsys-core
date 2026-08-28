@@ -16,10 +16,10 @@ type ExecutionLogDTO struct {
 }
 
 type LogService struct {
-	repo repository.NeuronRepository
+	repo repository.ProcessRepository
 }
 
-func NewLogService(repo repository.NeuronRepository) *LogService {
+func NewLogService(repo repository.ProcessRepository) *LogService {
 	return &LogService{repo: repo}
 }
 

@@ -50,22 +50,6 @@ const (
 	ActionTypeAck       ActionType = "ack"
 )
 
-// Backward-compatible aliases used by the existing HTTP contract.
-type NeuronType = ProcessType
-type NeuronState = ExecutionState
-type NeuronStatus = ExecutionStatus
-
-const (
-	NeuronTypeEndless     = ProcessTypeEndless
-	NeuronTypeProgressive = ProcessTypeProgressive
-	NeuronStateIdle       = ExecutionStateIdle
-	NeuronStateRunning    = ExecutionStateRunning
-	NeuronStateStopping   = ExecutionStateStopping
-	NeuronStateFailed     = ExecutionStateFailed
-	NeuronStatusActive    = ExecutionStatusActive
-	NeuronStatusInactive  = ExecutionStatusInactive
-)
-
 func (f WorkerFramework) Valid() bool {
 	return f == WorkerFrameworkSpringBoot ||
 		f == WorkerFrameworkNodeJS ||

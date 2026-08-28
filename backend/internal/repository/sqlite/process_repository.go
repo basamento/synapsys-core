@@ -8,15 +8,15 @@ import (
 	"synapsys-core/internal/domain"
 )
 
-type NeuronRepository struct {
+type ProcessRepository struct {
 	db *sql.DB
 }
 
-func NewNeuronRepository(db *sql.DB) *NeuronRepository {
-	return &NeuronRepository{db: db}
+func NewProcessRepository(db *sql.DB) *ProcessRepository {
+	return &ProcessRepository{db: db}
 }
 
-func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.ProcessView, error) {
+func (r *ProcessRepository) ListAll(ctx context.Context) ([]domain.ProcessView, error) {
 	const query = `
 		SELECT
 			p.id,
@@ -75,7 +75,7 @@ func (r *NeuronRepository) ListAll(ctx context.Context) ([]domain.ProcessView, e
 	return results, nil
 }
 
-func (r *NeuronRepository) SyncHeartbeat(
+func (r *ProcessRepository) SyncHeartbeat(
 	ctx context.Context,
 	worker domain.Worker,
 	observations []domain.ProcessObservation,
@@ -141,7 +141,7 @@ func (r *NeuronRepository) SyncHeartbeat(
 	return commands, nil
 }
 
-func (r *NeuronRepository) ListExecutionLogs(
+func (r *ProcessRepository) ListExecutionLogs(
 	ctx context.Context,
 	executionID int64,
 	afterSequence int64,
@@ -201,7 +201,7 @@ func insertExecutionLogs(ctx context.Context, tx *sql.Tx, workerID int64, logs [
 	return nil
 }
 
-func (r *NeuronRepository) UpdateDesiredCommand(
+func (r *ProcessRepository) UpdateDesiredCommand(
 	ctx context.Context,
 	processID int64,
 	state domain.ExecutionState,

@@ -228,23 +228,22 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           description: Token not found, or already revoked.
-  /api/neuron:
+  /api/processes:
     get:
       security:
         - sessionCookie: []
       operationId: listProcesses
       summary: List every known process
       description: |
-        A flat, unpaginated view of every process across every worker. The path is
-        legacy: "neuron" was the earlier name for a process. Prefer `/api/state`,
-        which is paginated and carries execution history.
+        A flat, unpaginated view of every process across every worker. Prefer
+        `/api/state`, which is paginated and carries execution history.
       responses:
         '200':
           description: Every known process.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NeuronListResponse'
+                $ref: '#/components/schemas/ProcessListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -527,15 +526,15 @@ components:
               description: |
                 The secret, formatted `syn_<id>_<secret>`. Returned only here;
                 Core stores a hash and cannot reproduce it.
-    NeuronListResponse:
+    ProcessListResponse:
       type: object
       required: [processes]
       properties:
         processes:
           type: array
           items:
-            $ref: '#/components/schemas/NeuronListItem'
-    NeuronListItem:
+            $ref: '#/components/schemas/ProcessListItem'
+    ProcessListItem:
       type: object
       description: One process, flattened together with the worker that owns it.
       required: [id, name, workerId, workerName, type, currentState, desiredState, desiredToken, ackToken, status, lastTouch, heartbeatInterval]

@@ -8,7 +8,7 @@ export type ListProcessOverviewsResponse = {
 }
 
 export async function listProcessOverviews() {
-  const res = await apiFetch<ListProcessOverviewsResponse>("/api/neuron");
+  const res = await apiFetch<ListProcessOverviewsResponse>("/api/processes");
   return { processOverviews: res.processes };
 }
 
@@ -20,10 +20,10 @@ function setDesiredState(process: ProcessOverview, desiredState: DesiredState) {
   })
 }
 
-export function startNeuron(process: ProcessOverview) {
+export function startProcess(process: ProcessOverview) {
   return setDesiredState(process, "running")
 }
 
-export function stopNeuron(process: ProcessOverview) {
+export function stopProcess(process: ProcessOverview) {
   return setDesiredState(process, "stopping")
 }
