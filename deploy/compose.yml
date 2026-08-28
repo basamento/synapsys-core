@@ -1,3 +1,5 @@
+name: synapsys-core
+
 services:
   core:
     image: ghcr.io/jmarzoli/synapsys-core:${SYNAPSYS_CORE_IMAGE_TAG:-latest}
@@ -8,16 +10,18 @@ services:
     cap_drop:
       - ALL
     networks:
-      - web
+      - proxy
     env_file:
       - .env
     volumes:
       - synapsys_data:/app/data
 
 networks:
-  web:
+  proxy:
     external: true
+    name: proxy
 
 volumes:
   synapsys_data:
+    external: true
     name: synapsys_data
