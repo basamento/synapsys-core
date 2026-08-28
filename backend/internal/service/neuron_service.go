@@ -13,7 +13,6 @@ import (
 type NeuronDTO struct {
 	ID              int64     `json:"id"`
 	Name            string    `json:"name"`
-	ApplicationName string    `json:"applicationName"`
 	WorkerID        int64     `json:"workerId"`
 	WorkerName      string    `json:"workerName"`
 	Framework       string    `json:"framework"`
@@ -26,7 +25,7 @@ type NeuronDTO struct {
 	RunId           *int64    `json:"runId,omitempty"`
 	Status          string    `json:"status"`
 	LastTouch       time.Time `json:"lastTouch"`
-	PingTiming      int       `json:"pingTiming"`
+	PingTiming      int       `json:"heartbeatInterval"`
 }
 
 type NeuronHeartbeat struct {
@@ -46,7 +45,6 @@ type NeuronCommand struct {
 
 type NeuronHeartbeatRequest struct {
 	WorkerName      string
-	ApplicationName string
 	Framework       domain.WorkerFramework
 	Host            string
 	PingTiming      int
@@ -60,11 +58,11 @@ type UpdateDesiredStateRequest struct {
 }
 
 type NeuronHeartbeatResponse struct {
-	Neurons []NeuronCommand `json:"neurons"`
+	Neurons []NeuronCommand `json:"processes"`
 }
 
 type NeuronListResponse struct {
-	Neurons []NeuronDTO `json:"neurons"`
+	Neurons []NeuronDTO `json:"processes"`
 }
 
 type NeuronService struct {
@@ -79,9 +77,6 @@ func (s *NeuronService) SyncNeurons(ctx context.Context, req NeuronHeartbeatRequ
 	now := time.Now()
 
 	workerName := req.WorkerName
-	if workerName == "" {
-		workerName = req.ApplicationName
-	}
 	if workerName == "" {
 		return NeuronHeartbeatResponse{}, fmt.Errorf("worker name is required")
 	}
@@ -177,7 +172,6 @@ func toNeuronDTO(view domain.ProcessView, now time.Time) NeuronDTO {
 	return NeuronDTO{
 		ID:              view.Process.ID,
 		Name:            view.Process.Name,
-		ApplicationName: view.Worker.Name,
 		WorkerID:        view.Worker.ID,
 		WorkerName:      view.Worker.Name,
 		Framework:       string(view.Worker.Framework),

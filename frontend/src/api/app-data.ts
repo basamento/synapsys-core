@@ -162,7 +162,6 @@ function buildProcessOverviews(
 
     return {
       ...process,
-      applicationName: worker?.name ?? "Unknown worker",
       workerName: worker?.name ?? "Unknown worker",
       framework: worker?.framework ?? "unknown",
       host: worker?.host ?? "",

@@ -190,3 +190,36 @@ func TestToSyncServiceRequestRequiresPositiveHeartbeatInterval(t *testing.T) {
 		t.Fatal("expected heartbeatInterval validation error")
 	}
 }
+
+// The legacy aliases applicationName, pingTiming and neurons were removed once
+// the only client sent canonical names. A body carrying just the old spellings
+// now decodes to nothing, and must be rejected rather than silently accepted
+// as a worker with no name and no processes.
+func TestLegacyAliasesAreNoLongerAccepted(t *testing.T) {
+	body := `{
+		"applicationName": "my-worker-app",
+		"pingTiming": 5,
+		"neurons": [
+			{"name": "p1", "type": "endless", "currentState": "running", "ackToken": 3}
+		]
+	}`
+
+	var dto neuronHeartbeatRequestDTO
+	if err := json.Unmarshal([]byte(body), &dto); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if dto.WorkerName != "" {
+		t.Fatalf("worker name = %q, want empty: applicationName must not bind", dto.WorkerName)
+	}
+	if dto.HeartbeatInterval != 0 {
+		t.Fatalf("heartbeat interval = %d, want 0: pingTiming must not bind", dto.HeartbeatInterval)
+	}
+	if len(dto.Processes) != 0 {
+		t.Fatalf("processes = %d, want 0: neurons must not bind", len(dto.Processes))
+	}
+
+	if _, err := toSyncServiceRequest(dto, "127.0.0.1:8080"); err == nil {
+		t.Fatal("toSyncServiceRequest accepted a body containing only legacy aliases")
+	}
+}

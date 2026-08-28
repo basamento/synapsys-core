@@ -34,7 +34,7 @@ export type Process = {
   workerId: number;
   type: ProcessType;
   createdAt: string;
-  pingTiming: number;
+  heartbeatInterval: number;
   desiredToken: number;
   ackToken: number;
   runId?: number | null;
@@ -60,7 +60,6 @@ export type Action = {
 };
 
 export type ProcessOverview = Process & {
-  applicationName: string;
   workerName: string;
   framework: WorkerFramework;
   host: string;

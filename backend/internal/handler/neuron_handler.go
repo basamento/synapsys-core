@@ -18,13 +18,10 @@ type NeuronHandler struct {
 }
 
 type neuronHeartbeatRequestDTO struct {
-	ApplicationName   string          `json:"applicationName"`
 	WorkerName        string          `json:"workerName"`
 	Framework         string          `json:"framework"`
 	Host              string          `json:"host"`
-	PingTiming        int             `json:"pingTiming"`
 	HeartbeatInterval int             `json:"heartbeatInterval"`
-	Neurons           []neuronInfoDTO `json:"neurons"`
 	Processes         []neuronInfoDTO `json:"processes"`
 	Logs              []processLogDTO `json:"logs"`
 }
@@ -135,9 +132,6 @@ func (h *NeuronHandler) UpdateDesiredState(w http.ResponseWriter, r *http.Reques
 
 func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (service.NeuronHeartbeatRequest, error) {
 	processes := dto.Processes
-	if len(processes) == 0 {
-		processes = dto.Neurons
-	}
 
 	neurons := make([]service.NeuronHeartbeat, 0, len(processes))
 	skipped := 0
@@ -221,15 +215,11 @@ func toSyncServiceRequest(dto neuronHeartbeatRequestDTO, remoteAddr string) (ser
 	}
 
 	heartbeatInterval := dto.HeartbeatInterval
-	if heartbeatInterval == 0 {
-		heartbeatInterval = dto.PingTiming
-	}
 	if heartbeatInterval <= 0 {
 		return service.NeuronHeartbeatRequest{}, fmt.Errorf("heartbeatInterval must be a positive number of seconds")
 	}
 
 	return service.NeuronHeartbeatRequest{
-		ApplicationName: dto.ApplicationName,
 		WorkerName:      dto.WorkerName,
 		Framework:       framework,
 		Host:            host,
@@ -247,10 +237,7 @@ func toHeartbeatProcessesResponse(
 	response service.NeuronHeartbeatResponse,
 	request neuronHeartbeatRequestDTO,
 ) heartbeatProcessesResponseDTO {
-	processByName := make(map[string]neuronInfoDTO, len(request.Processes)+len(request.Neurons))
-	for _, process := range request.Neurons {
-		processByName[process.Name] = process
-	}
+	processByName := make(map[string]neuronInfoDTO, len(request.Processes))
 	for _, process := range request.Processes {
 		processByName[process.Name] = process
 	}

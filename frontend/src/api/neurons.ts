@@ -4,12 +4,12 @@ import type { DesiredState, ProcessOverview } from "@/types/entities";
 export type { ProcessOverview };
 
 export type ListProcessOverviewsResponse = {
-  neurons: ProcessOverview[];
+  processes: ProcessOverview[];
 }
 
 export async function listProcessOverviews() {
   const res = await apiFetch<ListProcessOverviewsResponse>("/api/neuron");
-  return { processOverviews: res.neurons };
+  return { processOverviews: res.processes };
 }
 
 // Processes are addressed by id: names are only unique within a worker.

@@ -24,7 +24,7 @@ type ProcessDTO struct {
 	WorkerID     int64     `json:"workerId"`
 	Type         string    `json:"type"`
 	CreatedAt    time.Time `json:"createdAt"`
-	PingTiming   int       `json:"pingTiming"`
+	PingTiming   int       `json:"heartbeatInterval"`
 	DesiredToken int64     `json:"desiredToken"`
 	AckToken     int64     `json:"ackToken"`
 	RunID        *int64    `json:"runId,omitempty"`
