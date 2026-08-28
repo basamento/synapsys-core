@@ -28,10 +28,8 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
-
-*.idea
+.idea/
+.vscode/
 
 # Local SQLite database (created at runtime, never shipped)
 backend/data/*.db
