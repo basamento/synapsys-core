@@ -5,6 +5,14 @@ info:
   description: |
     The v1 control-plane contract. Workers open every connection; Core never
     calls a worker. `heartbeatInterval` is always expressed in whole seconds.
+
+    Two independent credentials exist. Workers authenticate with a bearer token
+    on the heartbeat endpoint. Operators and the bundled console authenticate
+    with a session cookie obtained from `POST /api/auth/login`, plus a CSRF
+    header on unsafe methods. `GET /api/health` is public.
+
+    Setting `SYNAPSYS_AUTH_DISABLED=true` disables both, and every endpoint then
+    responds as if authenticated. That is intended for local development only.
 servers:
   - url: http://localhost:8080
     description: Local Core
@@ -28,6 +36,8 @@ paths:
         Sends a complete snapshot of the worker's readable processes. A malformed
         process is skipped without rejecting valid siblings. The request is rejected
         only when it contains processes but none are readable.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -43,8 +53,12 @@ paths:
                 $ref: '#/components/schemas/HeartbeatResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /api/processes/{id}/desired-state:
     put:
+      security:
+        - sessionCookie: []
       operationId: commandProcess
       summary: Start or stop a process
       parameters:
@@ -66,10 +80,14 @@ paths:
           description: Command was recorded for delivery on the next heartbeat.
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: Process not found.
   /api/state:
     get:
+      security:
+        - sessionCookie: []
       operationId: getState
       summary: Read the paginated console state
       parameters:
@@ -90,10 +108,33 @@ paths:
                 $ref: '#/components/schemas/StateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Worker credential, sent as `Authorization: Bearer <token>`. Accepts either
+        a token created through the console, or the `SYNAPSYS_WORKER_TOKEN`
+        deployment credential.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: synapsys_session
+      description: |
+        Operator session issued by `POST /api/auth/login`. Unsafe methods must
+        also send the `synapsys_csrf` cookie value in an `X-CSRF-Token` header.
   responses:
     BadRequest:
       description: Request validation failed.
+      content:
+        text/plain:
+          schema:
+            type: string
+    Unauthorized:
+      description: Credential missing, malformed, revoked, or expired.
       content:
         text/plain:
           schema:
@@ -198,6 +239,46 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HeartbeatProcess'
+        logs:
+          type: array
+          description: |
+            Console output produced by this worker's processes since the previous
+            heartbeat. Optional: a client that does not capture output omits it.
+            Entries whose runId is null are discarded, since they cannot be
+            attached to an execution.
+          items:
+            $ref: '#/components/schemas/ProcessLog'
+    ProcessLog:
+      type: object
+      required: [processName, timestamp, message]
+      properties:
+        processName:
+          type: string
+          minLength: 1
+          description: Must match a process reported by this worker.
+        runId:
+          type: [integer, 'null']
+          format: int64
+          description: Execution the line belongs to, as sent by Core in a command.
+        sequence:
+          type: [integer, 'null']
+          format: int64
+          description: |
+            Monotonic counter within one run, used to order lines that share a
+            timestamp. Clients should send it.
+        timestamp:
+          type: string
+          format: date-time
+          description: When the line was produced, on the worker's clock.
+        source:
+          type: string
+          enum: [stdout, stderr]
+        level:
+          type: string
+          enum: [info, error]
+        message:
+          type: string
+          description: One line, without a trailing newline.
     ProcessCommand:
       allOf:
         - $ref: '#/components/schemas/HeartbeatProcess'
