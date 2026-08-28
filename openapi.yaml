@@ -110,6 +110,190 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: Open an operator session
+      description: |
+        Sets the `synapsys_session` and `synapsys_csrf` cookies on success. Send
+        the `synapsys_csrf` value as an `X-CSRF-Token` header on later unsafe
+        requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Session opened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/session:
+    get:
+      operationId: getSession
+      summary: Check whether the current session is valid
+      responses:
+        '200':
+          description: The session is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: Close the operator session
+      description: Expires both cookies. Succeeds whether or not a session existed.
+      responses:
+        '204':
+          description: Session closed.
+  /api/auth/worker-tokens:
+    get:
+      security:
+        - sessionCookie: []
+      operationId: listWorkerTokens
+      summary: List worker tokens
+      description: Returns metadata only. Token secrets are never readable after creation.
+      responses:
+        '200':
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkerToken'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      security:
+        - sessionCookie: []
+      operationId: createWorkerToken
+      summary: Create a worker token
+      description: |
+        The generated secret is returned **once**, in this response, and is stored
+        only as a hash. It cannot be retrieved again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkerTokenCreateRequest'
+      responses:
+        '201':
+          description: Token created. Record the secret now.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerTokenSecret'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/worker-tokens/{id}:
+    delete:
+      security:
+        - sessionCookie: []
+      operationId: revokeWorkerToken
+      summary: Revoke a worker token
+      description: |
+        Revocation is immediate and permanent. Workers still presenting the token
+        begin receiving 401 on their next heartbeat.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '204':
+          description: Token revoked.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Token not found, or already revoked.
+  /api/neuron:
+    get:
+      security:
+        - sessionCookie: []
+      operationId: listProcesses
+      summary: List every known process
+      description: |
+        A flat, unpaginated view of every process across every worker. The path is
+        legacy: "neuron" was the earlier name for a process. Prefer `/api/state`,
+        which is paginated and carries execution history.
+      responses:
+        '200':
+          description: Every known process.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NeuronListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/executions/{id}/logs:
+    get:
+      security:
+        - sessionCookie: []
+      operationId: listExecutionLogs
+      summary: Read the console output of one execution
+      description: |
+        Lines are ordered by `sequence`. Poll incrementally by passing the highest
+        sequence already seen as `after`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: after
+          in: query
+          description: Return only lines with a sequence greater than this.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: Console output for the execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -135,6 +319,12 @@ components:
             type: string
     Unauthorized:
       description: Credential missing, malformed, revoked, or expired.
+      content:
+        text/plain:
+          schema:
+            type: string
+    InternalError:
+      description: Core could not complete the request.
       content:
         text/plain:
           schema:
@@ -279,6 +469,153 @@ components:
         message:
           type: string
           description: One line, without a trailing newline.
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 128
+        password:
+          type: string
+          format: password
+    SessionResponse:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+        username:
+          type: string
+          description: Omitted when authentication is disabled.
+    WorkerToken:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: Absent until the token authenticates a heartbeat.
+        revokedAt:
+          type: string
+          format: date-time
+          description: Absent while the token is active.
+    WorkerTokenCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          default: Worker token
+          description: Blank or omitted becomes "Worker token".
+    WorkerTokenSecret:
+      allOf:
+        - $ref: '#/components/schemas/WorkerToken'
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              description: |
+                The secret, formatted `syn_<id>_<secret>`. Returned only here;
+                Core stores a hash and cannot reproduce it.
+    NeuronListResponse:
+      type: object
+      required: [neurons]
+      properties:
+        neurons:
+          type: array
+          items:
+            $ref: '#/components/schemas/NeuronListItem'
+    NeuronListItem:
+      type: object
+      description: One process, flattened together with the worker that owns it.
+      required: [id, name, workerId, workerName, type, currentState, desiredState, desiredToken, ackToken, status, lastTouch, pingTiming]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        applicationName:
+          type: string
+          description: Legacy alias of workerName, retained for older consoles.
+        workerId:
+          type: integer
+          format: int64
+        workerName:
+          type: string
+        framework:
+          type: string
+        host:
+          type: string
+        type:
+          $ref: '#/components/schemas/ProcessType'
+        currentState:
+          $ref: '#/components/schemas/ExecutionState'
+        desiredState:
+          $ref: '#/components/schemas/DesiredState'
+        desiredToken:
+          type: integer
+          format: int64
+        ackToken:
+          type: integer
+          format: int64
+        runId:
+          type: [integer, 'null']
+          format: int64
+        status:
+          type: string
+          description: Whether the owning worker is currently considered connected.
+        lastTouch:
+          type: string
+          format: date-time
+        pingTiming:
+          type: integer
+          description: The worker's reported heartbeat interval, in seconds.
+    ExecutionLogsResponse:
+      type: object
+      required: [executionId, logs]
+      properties:
+        executionId:
+          type: integer
+          format: int64
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionLog'
+    ExecutionLog:
+      type: object
+      required: [id, executionId, sequence, timestamp, source, level, message]
+      properties:
+        id:
+          type: integer
+          format: int64
+        executionId:
+          type: integer
+          format: int64
+        sequence:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [stdout, stderr]
+        level:
+          type: string
+          enum: [info, error]
+        message:
+          type: string
     ProcessCommand:
       allOf:
         - $ref: '#/components/schemas/HeartbeatProcess'
