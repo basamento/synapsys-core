@@ -4,7 +4,7 @@ export interface WorkerLike {
   id: number;
   name: string;
   host: string;
-  framework: "springboot" | "nodejs" | "python" | "unknown";
+  framework: "springboot" | "nodejs" | "python" | "go" | "unknown";
   firstConnection: string;
   lastConnection: string;
   lastTouch: string;

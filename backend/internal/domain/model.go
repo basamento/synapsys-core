@@ -16,6 +16,7 @@ const (
 	WorkerFrameworkSpringBoot WorkerFramework = "springboot"
 	WorkerFrameworkNodeJS     WorkerFramework = "nodejs"
 	WorkerFrameworkPython     WorkerFramework = "python"
+	WorkerFrameworkGo         WorkerFramework = "go"
 	WorkerFrameworkUnknown    WorkerFramework = "unknown"
 )
 
@@ -54,6 +55,7 @@ func (f WorkerFramework) Valid() bool {
 	return f == WorkerFrameworkSpringBoot ||
 		f == WorkerFrameworkNodeJS ||
 		f == WorkerFrameworkPython ||
+		f == WorkerFrameworkGo ||
 		f == WorkerFrameworkUnknown
 }
 

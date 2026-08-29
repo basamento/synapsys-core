@@ -628,6 +628,10 @@ components:
               type: integer
               format: int64
               minimum: 0
+              description: |
+                Advance ackToken only after accepting this command. A start that
+                arrives while the previous run is stopping remains unacknowledged
+                until the old run is terminal, so Core redelivers it.
     HeartbeatResponse:
       type: object
       required: [processes]

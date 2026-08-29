@@ -52,7 +52,7 @@ func (s CollectionSchema) Sortable(key string) bool {
 var CollectionSchemas = map[Collection]CollectionSchema{
 	CollectionWorkers: {
 		FilterParam:    "Framework",
-		FilterValues:   []string{"springboot", "nodejs", "python", "unknown"},
+		FilterValues:   []string{"springboot", "nodejs", "python", "go", "unknown"},
 		SortKeys:       []string{"name", "framework", "firstConnection", "lastConnection", "processes"},
 		DefaultSortKey: "lastConnection",
 		DefaultSortDir: SortDescending,

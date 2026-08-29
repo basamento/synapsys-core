@@ -2,6 +2,7 @@ export function formatFramework(fw) {
   if (fw === "springboot") return "Spring Boot";
   if (fw === "nodejs") return "Node.js";
   if (fw === "python") return "Python";
+  if (fw === "go") return "Go";
   return "Unknown";
 }
 

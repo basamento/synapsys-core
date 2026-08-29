@@ -17,6 +17,7 @@ const FRAMEWORK_LABELS: Record<WorkerFramework, string> = {
   springboot: "Spring Boot",
   nodejs: "Node.js",
   python: "Python",
+  go: "Go",
   unknown: "Unknown",
 };
 
