@@ -6,7 +6,7 @@ export interface ProcessOverviewLike {
   workerName: string;
   host?: string;
   type: "endless" | "progressive";
-  framework: "springboot" | "nodejs" | "python" | "go" | "unknown";
+  framework: "springboot" | "nodejs" | "python" | "go" | "dotnet" | "unknown";
   currentState: "idle" | "running" | "stopping" | "failed";
   desiredState: string;
   desiredToken: number;

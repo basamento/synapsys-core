@@ -17,6 +17,7 @@ const (
 	WorkerFrameworkNodeJS     WorkerFramework = "nodejs"
 	WorkerFrameworkPython     WorkerFramework = "python"
 	WorkerFrameworkGo         WorkerFramework = "go"
+	WorkerFrameworkDotNet     WorkerFramework = "dotnet"
 	WorkerFrameworkUnknown    WorkerFramework = "unknown"
 )
 
@@ -56,6 +57,7 @@ func (f WorkerFramework) Valid() bool {
 		f == WorkerFrameworkNodeJS ||
 		f == WorkerFrameworkPython ||
 		f == WorkerFrameworkGo ||
+		f == WorkerFrameworkDotNet ||
 		f == WorkerFrameworkUnknown
 }
 

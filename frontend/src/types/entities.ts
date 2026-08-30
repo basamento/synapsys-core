@@ -1,4 +1,4 @@
-export type WorkerFramework = "springboot" | "nodejs" | "python" | "go" | "unknown";
+export type WorkerFramework = "springboot" | "nodejs" | "python" | "go" | "dotnet" | "unknown";
 
 export type ProcessType = "endless" | "progressive";
 

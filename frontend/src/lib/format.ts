@@ -18,6 +18,7 @@ const FRAMEWORK_LABELS: Record<WorkerFramework, string> = {
   nodejs: "Node.js",
   python: "Python",
   go: "Go",
+  dotnet: ".NET",
   unknown: "Unknown",
 };
 

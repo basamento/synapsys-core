@@ -2,12 +2,18 @@ package domain
 
 import "testing"
 
-func TestGoWorkerFrameworkIsValid(t *testing.T) {
-	if !WorkerFrameworkGo.Valid() {
-		t.Fatal("go worker framework should be valid")
+func TestSdkWorkerFrameworksAreValidAndFilterable(t *testing.T) {
+	frameworks := []WorkerFramework{
+		WorkerFrameworkGo,
+		WorkerFrameworkDotNet,
 	}
+	for _, framework := range frameworks {
+		if !framework.Valid() {
+			t.Fatalf("%s worker framework should be valid", framework)
+		}
 
-	if !CollectionSchemas[CollectionWorkers].Accepts(string(WorkerFrameworkGo)) {
-		t.Fatal("workers framework filter should accept go")
+		if !CollectionSchemas[CollectionWorkers].Accepts(string(framework)) {
+			t.Fatalf("workers framework filter should accept %s", framework)
+		}
 	}
 }
