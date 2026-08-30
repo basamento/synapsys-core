@@ -15,7 +15,7 @@ import (
 
 func main() {
 	// open database connection
-	database, err := db.Open("file:data/nucleus.db?_foreign_keys=on")
+	database, err := db.Open("file:data/nucleus.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func main() {
 	authService.Register(mux)
 	authService.RegisterWorkerTokenRoutes(mux, authService.RequireUI)
 	// register health
-	healthService := service.NewHealthService()
+	healthService := service.NewHealthService(database)
 	healthHandler := handler.NewHealthHandler(healthService)
 	server.RegisterHealth(mux, healthHandler)
 	// register processes

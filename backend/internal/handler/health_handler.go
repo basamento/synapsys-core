@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"synapsys-core/internal/service"
 )
@@ -15,8 +16,13 @@ func NewHealthHandler(service *service.HealthService) *HealthHandler {
 }
 
 func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	result := h.service.Check(r.Context())
+	result, err := h.service.Check(r.Context())
+	status := http.StatusOK
+	if err != nil {
+		log.Printf("Health check failed: %v", err)
+		status = http.StatusServiceUnavailable
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(result)
 }

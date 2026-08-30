@@ -9,13 +9,19 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const connectionPragmas = "_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"
+
 func Open(path string) (*sql.DB, error) {
 	// The database file is not shipped: make sure its directory exists first.
 	if err := ensureDir(path); err != nil {
 		return nil, err
 	}
+	dsn := path + "?" + connectionPragmas
+	if strings.Contains(path, "?") {
+		dsn = path + "&" + connectionPragmas
+	}
 	// try connection
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +34,7 @@ func Open(path string) (*sql.DB, error) {
 }
 
 // ensureDir creates the parent directory of a SQLite DSN such as
-// "file:data/nucleus.db?_foreign_keys=on".
+// "file:data/nucleus.db?_pragma=foreign_keys(1)".
 func ensureDir(dsn string) error {
 	path := strings.TrimPrefix(dsn, "file:")
 	if i := strings.IndexByte(path, '?'); i >= 0 {

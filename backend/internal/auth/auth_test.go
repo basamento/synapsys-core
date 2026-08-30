@@ -13,7 +13,7 @@ import (
 
 func newTestService(t *testing.T, config Config) *Service {
 	t.Helper()
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestLoginSessionAndCSRF(t *testing.T) {
 }
 
 func TestBootstrapCredentialIsPersistent(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}

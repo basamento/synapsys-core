@@ -9,7 +9,7 @@ import (
 )
 
 func TestProgressiveProcessCommandIdempotency(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestProgressiveProcessCommandIdempotency(t *testing.T) {
 }
 
 func TestSameProcessNameOnDifferentWorkers(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestSameProcessNameOnDifferentWorkers(t *testing.T) {
 }
 
 func TestWorkerRegistersWithoutProcesses(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestWorkerRegistersWithoutProcesses(t *testing.T) {
 }
 
 func TestUpdateDesiredStateRejectsFailed(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestUpdateDesiredStateRejectsFailed(t *testing.T) {
 }
 
 func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestAckedCleanupLeavesSiblingRunIDIntact(t *testing.T) {
 }
 
 func TestProgressiveRunsAreRetainedAsExecutionHistory(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -410,7 +410,7 @@ func commandByName(t *testing.T, response HeartbeatResponse, name string) Proces
 }
 
 func TestCompletedCommandResolvesActionWithoutDuplicateAck(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}

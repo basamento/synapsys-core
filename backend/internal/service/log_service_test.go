@@ -10,7 +10,7 @@ import (
 )
 
 func TestHeartbeatLogsAreStoredAndDeduplicated(t *testing.T) {
-	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")) + "?_foreign_keys=on")
+	database, err := db.Open("file:" + filepath.ToSlash(filepath.Join(t.TempDir(), "nucleus.db")))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
