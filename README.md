@@ -8,7 +8,7 @@ port `8080`.
 The production image is published privately to GitHub Container Registry:
 
 ```text
-ghcr.io/jmarzoli/synapsys-core
+ghcr.io/basamento/synapsys-core
 ```
 
 Images are published by the `Publish Docker image` workflow when a version tag
@@ -43,7 +43,7 @@ docker run -d \
   -e SYNAPSYS_AUTH_USERNAME=admin \
   -e SYNAPSYS_AUTH_PASSWORD='change-me' \
   -v synapsys_data:/app/data \
-  ghcr.io/jmarzoli/synapsys-core:0.1.0
+  ghcr.io/basamento/synapsys-core:0.1.0
 ```
 
 `SYNAPSYS_AUTH_PASSWORD_FILE` can be used instead of

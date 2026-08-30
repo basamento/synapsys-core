@@ -2,7 +2,7 @@ name: synapsys-core
 
 services:
   core:
-    image: ghcr.io/jmarzoli/synapsys-core:${SYNAPSYS_CORE_IMAGE_TAG:-latest}
+    image: ghcr.io/basamento/synapsys-core:${SYNAPSYS_CORE_IMAGE_TAG:-latest}
     container_name: synapsys-core
     restart: unless-stopped
     security_opt:
