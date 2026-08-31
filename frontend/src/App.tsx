@@ -20,7 +20,7 @@ function Shell() {
   const isMobile = useIsMobile();
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-canvas">
+    <div className="relative flex h-svh flex-col overflow-hidden bg-canvas">
       <TopBar />
 
       <div className="flex min-h-0 flex-1 gap-(--shell-gap) overflow-hidden px-4 py-4 sm:px-(--shell-pad-x) sm:py-(--shell-pad-y)">
@@ -31,6 +31,14 @@ function Shell() {
       </div>
 
       {isMobile && <TabBar />}
+      {!isMobile && (
+        <p
+          aria-label="Copyright and license"
+          className="pointer-events-none absolute bottom-1.5 left-4 whitespace-nowrap type-mono-sm text-faint sm:left-(--shell-pad-x)"
+        >
+          © 2026 Julian Marzoli (Basamento) · Proprietary software
+        </p>
+      )}
     </div>
   );
 }
