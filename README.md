@@ -79,3 +79,10 @@ token. The raw token is shown only once. Core stores only a hash, and tokens
 can be revoked from the same page. Worker requests authenticate with either
 an active generated token or `SYNAPSYS_WORKER_TOKEN`.
 
+## Copyright and licence
+
+Copyright 2026 Julian Marzoli (Basamento). All rights reserved.
+
+Synapsys Core is proprietary software. Access to its source code does not grant
+permission to use, copy, modify, publish, distribute, sublicense, sell, host,
+or create derivative works. See [LICENSE](LICENSE).
