@@ -131,6 +131,17 @@ export function SettingsPage() {
         </div>
       </Panel>
 
+      <Panel
+        title="About Synapsys Core"
+        description="Ownership and licensing information for this installation."
+      >
+        <div className="flex flex-col gap-1.5 type-body-sm text-muted-foreground">
+          <p className="font-semibold text-heading">© 2026 Julian Marzoli (Basamento).</p>
+          <p>Synapsys Core is proprietary software. All rights reserved.</p>
+          <p>The license terms supplied with your distribution control your permitted use.</p>
+        </div>
+      </Panel>
+
       <Dialog
         open={createOpen}
         onOpenChange={(open) => {

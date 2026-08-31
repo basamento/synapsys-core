@@ -95,6 +95,12 @@ export function SideBar() {
         </NavLink>
 
         <LogoutButton />
+
+        <p className="hidden px-3 pt-2 type-mono-sm leading-relaxed text-faint wide:block">
+          © 2026 Julian Marzoli (Basamento)
+          <br />
+          Proprietary software
+        </p>
       </div>
     </nav>
   );
