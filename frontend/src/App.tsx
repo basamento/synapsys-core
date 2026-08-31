@@ -34,7 +34,7 @@ function Shell() {
       {!isMobile && (
         <p
           aria-label="Copyright and license"
-          className="pointer-events-none absolute bottom-1.5 left-4 whitespace-nowrap type-mono-sm text-faint sm:left-(--shell-pad-x)"
+          className="pointer-events-none absolute right-4 bottom-1.5 whitespace-nowrap type-mono-sm text-faint sm:right-(--shell-pad-x)"
         >
           © 2026 Julian Marzoli (Basamento) · Proprietary software
         </p>
