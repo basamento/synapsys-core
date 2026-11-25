@@ -7,6 +7,8 @@ RUN npm ci
 
 COPY frontend/ .
 RUN npm run build
+COPY scripts/ /tmp/license-scripts/
+RUN node /tmp/license-scripts/collect-npm-licenses.mjs /third-party-licenses/npm
 
 
 # ---- 2. Build Go backend (embed frontend) ----
@@ -21,6 +23,7 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
 COPY backend/ .
+COPY scripts/collect-go-licenses.go /tmp/collect-go-licenses.go
 
 # Copy built frontend into the correct embed folder
 RUN mkdir -p web/dist
@@ -28,7 +31,9 @@ COPY --from=frontend-builder /frontend/dist/ ./web/dist/
 
 # Build a static release binary. The frontend is embedded by web/static.go.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w" -o synapsys-core ./cmd/api
+    go build -trimpath -ldflags="-s -w" -o synapsys-core ./cmd/api \
+    && CGO_ENABLED=0 LICENSE_TARGETOS=${TARGETOS} LICENSE_TARGETARCH=${TARGETARCH} \
+       go run /tmp/collect-go-licenses.go /third-party-licenses/go
 
 # ---- 3. Final runtime image ----
 FROM alpine:3.20
@@ -43,6 +48,9 @@ RUN addgroup -S synapsys \
 
 COPY --from=backend-builder --chown=synapsys:synapsys \
     /app/synapsys-core /app/synapsys-core
+COPY LICENSE /app/LICENSE
+COPY --from=frontend-builder /third-party-licenses/npm /app/third-party-licenses/npm
+COPY --from=backend-builder /third-party-licenses/go /app/third-party-licenses/go
 
 EXPOSE 8080
 

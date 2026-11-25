@@ -3,59 +3,48 @@
 Synapsys Core serves the Cortex operator console and its control-plane API on
 port `8080`.
 
-## Docker image
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution process and the
+current status of the contributor license agreement.
 
-The production image is published privately to GitHub Container Registry:
+## Run locally with Docker
 
-```text
-ghcr.io/basamento/synapsys-core
-```
-
-Images are published by the `Publish Docker image` workflow when a version tag
-starting with `v` is pushed. This project is still pre-1.0, so use versions such
-as `v0.1.0`, `v0.1.0-alpha.1`, or `v0.0.5`. Stable version tags also update the
-mutable `latest` tag.
-
-To publish a release after committing the desired changes:
+With Docker installed, build the image from the repository root:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+docker build -t synapsys-core:local .
 ```
 
-The GitHub Container Registry package should remain private. Its visibility is
-managed separately from the GitHub repository, so verify the package settings
-after the first publish.
-
-The frontend is compiled and embedded into the Go executable. The final image
-does not contain the Node.js toolchain, Go toolchain, application source, or
-frontend source. Runtime state is stored in the `/app/data` volume.
-
-## Container authentication
-
-The first enabled startup creates one operator account in the persistent
-`/app/data` database:
+Start Core and choose a password for the initial operator account:
 
 ```bash
 docker run -d \
   --name synapsys-core \
   -p 8080:8080 \
   -e SYNAPSYS_AUTH_USERNAME=admin \
-  -e SYNAPSYS_AUTH_PASSWORD='change-me' \
+  -e SYNAPSYS_AUTH_PASSWORD='choose-a-strong-password' \
   -v synapsys_data:/app/data \
-  ghcr.io/basamento/synapsys-core:0.1.0
+  synapsys-core:local
 ```
+
+Open <http://localhost:8080> and sign in with the credentials supplied above.
+In **Settings**, create a worker token to connect an application using one of
+the Synapsys SDKs. Replace the example password with your own value.
+
+The frontend is compiled and embedded into the Go executable. Runtime state,
+including the operator account, is stored in the `synapsys_data` volume.
+
+## Container authentication
 
 `SYNAPSYS_AUTH_PASSWORD_FILE` can be used instead of
 `SYNAPSYS_AUTH_PASSWORD` when supplying a Docker secret. The credentials are
 only used to initialize an empty data volume; changing the environment
 variables later does not overwrite the persisted password.
 
-For local development only, authentication can be explicitly disabled:
+For local development only, authentication can be explicitly disabled by
+passing this environment variable to the container:
 
-```powershell
-$env:SYNAPSYS_AUTH_DISABLED = "true"
-dev\run-core.ps1
+```bash
+-e SYNAPSYS_AUTH_DISABLED=true
 ```
 
 The UI uses an HttpOnly cookie session. Put the container behind HTTPS before
@@ -79,10 +68,23 @@ token. The raw token is shown only once. Core stores only a hash, and tokens
 can be revoked from the same page. Worker requests authenticate with either
 an active generated token or `SYNAPSYS_WORKER_TOKEN`.
 
+## Docker Compose reference
+
+A reference Compose configuration is available in [deploy/compose.yml](deploy/compose.yml).
+It expects an external Docker network named `proxy` and an external volume named
+`synapsys_data`. Set the values from [deploy/.env.example](deploy/.env.example)
+in a `.env` file before starting the service. Review the example configuration
+and adapt it to your own environment.
+
 ## Copyright and licence
 
-Copyright 2026 Julian Marzoli (Basamento). All rights reserved.
+Copyright 2026 Julian Marzoli (Basamento).
 
-Synapsys Core is proprietary software. Access to its source code does not grant
-permission to use, copy, modify, publish, distribute, sublicense, sell, host,
-or create derivative works. See [LICENSE](LICENSE).
+Synapsys Core is source-available under the [Elastic License 2.0](LICENSE).
+The license permits use, modification, and redistribution subject to its terms,
+including restrictions on providing substantial functionality as a hosted or
+managed service. Contact the copyright holder about a separate license for uses
+not permitted by these terms. Third-party components retain their own licenses.
+The container includes collected third-party license files and dependency
+metadata in `/app/third-party-licenses`; entries without a license file in the
+upstream package require separate review.

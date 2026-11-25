@@ -137,7 +137,7 @@ export function SettingsPage() {
       >
         <div className="flex flex-col gap-1.5 type-body-sm text-muted-foreground">
           <p className="font-semibold text-heading">© 2026 Julian Marzoli (Basamento).</p>
-          <p>Synapsys Core is proprietary software. All rights reserved.</p>
+          <p>Synapsys Core is available under the Elastic License 2.0.</p>
           <p>The license terms supplied with your distribution control your permitted use.</p>
         </div>
       </Panel>
