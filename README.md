@@ -1,7 +1,24 @@
 # Synapsys Core
 
-Synapsys Core serves the Cortex operator console and its control-plane API on
-port `8080`.
+Synapsys is a self-hosted control plane for background work that already runs in
+your applications and scripts. Core provides the Cortex operator console and an
+API to view registered processes, start or stop work, inspect execution history,
+and read output. The work stays in its application: a worker connects to Core
+using an SDK or the HTTP API.
+
+## Explore the ecosystem
+
+| Component | Repository |
+| --- | --- |
+| Documentation | [synapsys-docs](https://github.com/basamento/synapsys-docs) |
+| Spring Boot starter | [synapsys-spring-boot-starter](https://github.com/basamento/synapsys-spring-boot-starter) |
+| Node.js SDK | [synapsys-node-sdk](https://github.com/basamento/synapsys-node-sdk) |
+| Python SDK | [synapsys-python-sdk](https://github.com/basamento/synapsys-python-sdk) |
+| Go SDK | [synapsys-go-sdk](https://github.com/basamento/synapsys-go-sdk) |
+| .NET SDK | [synapsys-dotnet-sdk](https://github.com/basamento/synapsys-dotnet-sdk) (NuGet packages are not yet published) |
+
+The repositories have separate licenses: Core uses Elastic License 2.0, while
+the SDKs, starter, and documentation use Apache License 2.0.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution process and the
 current status of the contributor license agreement.
